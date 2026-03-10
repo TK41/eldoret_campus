@@ -1,0 +1,111 @@
+/* ============================================================
+   assets/css/theme.css
+   Light & Dark theme CSS variables
+   Applied via data-theme="light" or data-theme="dark" on <html>
+   The default is light; toggled via JS in main.js
+============================================================ */
+
+/* ── LIGHT THEME (default) ── */
+[data-theme="light"],
+:root {
+    /* Backgrounds */
+    --bg:              #f4f6fb;       /* page background */
+    --surface:         #ffffff;       /* cards, modals */
+    --surface-hover:   #f0f4ff;       /* card hover state */
+    --topbar-bg:       #ffffff;
+    --sidebar-bg:      #ffffff;
+    --input-bg:        #f8fafc;
+    --table-head-bg:   #f8fafc;
+    --table-hover:     #f0f4ff;
+
+    /* Borders */
+    --border:          #e2e8f0;       /* standard border */
+    --border-light:    #f1f5f9;       /* very subtle dividers */
+
+    /* Text */
+    --text-primary:    #1e293b;
+    --text-muted:      #64748b;
+    --text-on-dark:    #ffffff;
+
+    /* Navigation */
+    --nav-text:        #475569;
+    --nav-hover-bg:    #f0f4ff;
+    --nav-active-bg:   #eef2ff;
+
+    /* Accent (KIMC blue) */
+    --accent:          #1a3a6b;
+    --accent-hover:    #243f7a;
+}
+
+/* ── DARK THEME ── */
+[data-theme="dark"] {
+    /* Backgrounds */
+    --bg:              #0f1117;
+    --surface:         #1a1d24;
+    --surface-hover:   #22263a;
+    --topbar-bg:       #16191f;
+    --sidebar-bg:      #16191f;
+    --input-bg:        #22263a;
+    --table-head-bg:   #1f2330;
+    --table-hover:     #1f2330;
+
+    /* Borders */
+    --border:          #2d3348;
+    --border-light:    #242840;
+
+    /* Text */
+    --text-primary:    #e2e8f0;
+    --text-muted:      #64748b;
+    --text-on-dark:    #ffffff;
+
+    /* Navigation */
+    --nav-text:        #94a3b8;
+    --nav-hover-bg:    #1f2330;
+    --nav-active-bg:   rgba(96,165,250,.1);
+
+    /* Accent adjusts for dark bg */
+    --accent:          #60a5fa;
+    --accent-hover:    #93c5fd;
+}
+
+/* ── Dark theme badge overrides (some badges need lighter backgrounds on dark) ── */
+[data-theme="dark"] .badge-book      { background: rgba(96,165,250,.15); color: #93c5fd; border-color: rgba(96,165,250,.3); }
+[data-theme="dark"] .badge-equipment { background: rgba(167,139,250,.15); color: #c4b5fd; border-color: rgba(167,139,250,.3); }
+[data-theme="dark"] .badge-available { background: rgba(74,222,128,.12); color: #4ade80; border-color: rgba(74,222,128,.25); }
+[data-theme="dark"] .badge-returned  { background: rgba(74,222,128,.12); color: #4ade80; border-color: rgba(74,222,128,.25); }
+[data-theme="dark"] .badge-overdue   { background: rgba(248,113,113,.12); color: #f87171; border-color: rgba(248,113,113,.25); }
+
+/* ── Dark topbar SVG logo (adjust colors for dark) ── */
+[data-theme="dark"] .topbar-brand svg circle:first-child { stroke: #60a5fa; }
+[data-theme="dark"] .topbar-brand svg circle:nth-child(2) { fill: rgba(96,165,250,.08); }
+[data-theme="dark"] .topbar-brand svg rect,
+[data-theme="dark"] .topbar-brand svg line,
+[data-theme="dark"] .topbar-brand svg circle:not(:first-child):not(:nth-child(2)) { stroke: #60a5fa; fill: none; }
+[data-theme="dark"] .topbar-brand svg text { fill: #60a5fa; }
+
+/* ── Dark mode form controls ── */
+[data-theme="dark"] .form-control {
+    background: #22263a;
+    border-color: #2d3348;
+    color: #e2e8f0;
+}
+[data-theme="dark"] .form-control:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96,165,250,.15);
+}
+
+/* ── Dark login page overrides ── */
+[data-theme="dark"] body.login-bg { background: #0f1117; }
+[data-theme="dark"] .type-toggle {
+    border-color: #2d3348;
+}
+[data-theme="dark"] .type-toggle:hover,
+[data-theme="dark"] .type-toggle.active {
+    border-color: #60a5fa;
+    background: rgba(96,165,250,.06);
+}
+
+/* ── Smooth transition when switching themes ── */
+html {
+    transition: background-color .25s ease, color .25s ease;
+}
