@@ -580,7 +580,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
 /* ── Success screen ── */
 .success-screen{background:#fff;border:1px solid var(--border);border-radius:16px;
     padding:48px 32px;text-align:center;max-width:520px;margin:40px auto}
-.success-icon{font-size:56px;margin-bottom:16px}
 .success-ref{background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2);
     border-radius:10px;padding:14px 20px;margin:20px 0;display:inline-block}
 .success-ref code{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--green)}
@@ -625,7 +624,6 @@ unset($_SESSION['admission_dob']);
 <!-- ══ SUCCESS ══ -->
 <div style="padding:40px 20px">
 <div class="success-screen">
-    <div class="success-icon">🎉</div>
     <h2 style="font-size:22px;font-weight:700;margin-bottom:8px">Application Submitted!</h2>
     <p style="color:var(--muted);font-size:14px">Your application to KIMC Eldoret Campus has been received successfully.</p>
 
@@ -645,7 +643,7 @@ unset($_SESSION['admission_dob']);
     <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);
         border-radius:10px;padding:14px 18px;text-align:left;margin-bottom:20px">
         <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">
-            💾 Save these details — you will need them to check your status
+            Save these details — you will need them to check your status
         </div>
         <div style="font-size:13px;color:#78350f;line-height:2">
             Reference Number: <strong style="font-family:'Space Mono',monospace"><?= htmlspecialchars($refNo) ?></strong><br>
@@ -1044,7 +1042,7 @@ function copyRef() {
 
                 <div style="margin-top:16px;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.2);
                     border-radius:10px;padding:13px 16px;font-size:13px;color:#92400e">
-                    ⚠️ <?= $updateMode ? 'Only the existing application will be updated. Review all changes before clicking' : 'Once submitted you cannot edit your application. Please review all information before clicking' ?> <strong><?= $updateMode ? 'Save Updates' : 'Submit' ?></strong>.
+                    <?= $updateMode ? 'Only the existing application will be updated. Review all changes before clicking' : 'Once submitted you cannot edit your application. Please review all information before clicking' ?> <strong><?= $updateMode ? 'Save Updates' : 'Submit' ?></strong>.
                 </div>
             </div>
             <div class="section-body" style="border-top:1px solid var(--border)">
