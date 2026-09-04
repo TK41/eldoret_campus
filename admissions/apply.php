@@ -1003,7 +1003,7 @@ function copyRef() {
         ═══════════════════════════════════════ -->
         <div class="section-card" id="step-4">
             <div class="section-hd">
-                <span class="section-icon">✅</span>
+                <!-- <span class="section-icon">✅</span> -->
                 <div>
                     <div class="section-title">Declaration &amp; Submit</div>
                     <div class="section-sub">Please read and agree before submitting</div>
