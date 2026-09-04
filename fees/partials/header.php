@@ -1,18 +1,31 @@
 <?php
+require_once __DIR__ . '/../../auth/rbac.php';
+requireAccess('fees');
 // fees/partials/header.php — shared nav for all fees pages
 $fees_admin = getCurrentAdmin();
 $fees_flash = getFlash();
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle ?? 'Fees') ?> — KIMC Fees</title>
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('kimc_theme');
+                const theme = savedTheme === 'dark' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+            } catch (e) {}
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= APP_ROOT ?>/assets/css/style.css">
     <link rel="stylesheet" href="<?= APP_ROOT ?>/assets/css/theme.css">
+    <link rel="stylesheet" href="<?= APP_ROOT ?>/assets/css/mobile.css">
     <style>
     /* ── Fees accent overrides ── */
     :root {
@@ -59,17 +72,14 @@ $fees_flash = getFlash();
         </button>
         <a href="<?= APP_ROOT ?>/portal.php" class="icon-btn" title="Back to Portal" style="font-size:18px;text-decoration:none">🏠</a>
         <div class="user-menu" onclick="toggleUserMenu()">
-            <div class="avatar" style="background:linear-gradient(135deg,#92400e,#d97706)"><?= strtoupper(substr($fees_admin['full_name'], 0, 1)) ?></div>
-            <div class="user-info">
-                <span class="user-name" style="color:#fcd34d"><strong><?= htmlspecialchars($fees_admin['full_name']) ?></strong></span>
-                <span class="user-role" style="color:rgba(255,255,255,.5)"><?= ucfirst($fees_admin['role']) ?></span>
-            </div>
-            <span class="dropdown-arrow" style="color:rgba(255,255,255,.4)">▾</span>
+            <?php
+            $parts = preg_split('/\s+/', trim($fees_admin['full_name']));
+            $initials = strtoupper(substr($parts[0] ?? '', 0, 1) . (isset($parts[1]) ? substr($parts[1], 0, 1) : ''));
+            ?>
+            <div class="avatar" style="background:linear-gradient(135deg,#92400e,#d97706)"><?= htmlspecialchars($initials) ?></div>
+            <span class="dropdown-arrow">▾</span>
             <div class="dropdown-menu" id="user-dropdown">
-                <a href="<?= APP_ROOT ?>/portal.php" class="dropdown-item">🏠 Portal Home</a>
-                <a href="<?= APP_ROOT ?>/admin/dashboard.php" class="dropdown-item">📦 Inventory</a>
-                <div class="dropdown-divider"></div>
-                <a href="<?= APP_ROOT ?>/auth/logout.php" class="dropdown-item danger">🚪 Sign Out</a>
+                <a href="<?= APP_ROOT ?>/auth/logout.php" class="dropdown-item danger" style="display:block;text-align:center;padding:12px 20px;">🚪 Sign Out</a>
             </div>
         </div>
     </div>
@@ -101,20 +111,14 @@ $fees_flash = getFlash();
            class="nav-item <?= ($activePage??'')==='fees_import'?'active':'' ?>">
             <span class="nav-icon">📥</span> Import Excel
         </a>
+        <a href="<?= APP_ROOT ?>/fees/export.php"
+           class="nav-item <?= ($activePage??'')==='fees_export'?'active':'' ?>">
+            <span class="nav-icon">📤</span> Export Excel
+        </a>
 
-        <div class="nav-section-label">System</div>
-        <a href="<?= APP_ROOT ?>/portal.php" class="nav-item">
-            <span class="nav-icon">🏠</span> Portal Home
-        </a>
-        <a href="<?= APP_ROOT ?>/admin/dashboard.php" class="nav-item">
-            <span class="nav-icon">📦</span> Inventory
-        </a>
+        <!-- System links moved to topbar home button; removed duplicate links -->
     </nav>
-    <div class="sidebar-footer">
-        <div style="font-size:11px;color:rgba(255,255,255,.35)">Signed in as</div>
-        <div style="font-weight:600;font-size:13px;color:#fcd34d"><?= htmlspecialchars($fees_admin['username']) ?></div>
-        <a href="<?= APP_ROOT ?>/auth/logout.php" class="sidebar-logout">Sign Out</a>
-    </div>
+    
 </aside>
 
 <main class="main-content">

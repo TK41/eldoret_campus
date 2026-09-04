@@ -157,7 +157,7 @@ button { font-family: inherit; }
 .user-info { display: flex; flex-direction: column; }
 .user-name  { font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.2; }
 .user-role  { font-size: 10px; color: var(--text-muted); text-transform: capitalize; }
-.dropdown-arrow { font-size: 10px; color: var(--text-muted); }
+.dropdown-arrow { font-size: 14px; color: var(--text-primary); margin-left:8px; font-weight:700; text-shadow: 0 1px 0 rgba(0,0,0,.18); }
 
 /* Dropdown menu */
 .dropdown-menu {
@@ -580,18 +580,23 @@ select.form-control { cursor: pointer; }
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
-    padding: 20px;
+    padding: 20px 20px 8px;
 }
 .type-toggle {
     border: 2px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 20px;
     cursor: pointer;
     transition: all .2s;
     text-align: center;
+    background: var(--surface);
 }
 .type-toggle input { display: none; }
-.type-toggle:hover { border-color: #1a3a6b; background: rgba(26,58,107,.04); }
+.type-toggle:hover {
+    border-color: #1a3a6b;
+    background: rgba(26,58,107,.04);
+    transform: translateY(-1px);
+}
 .type-toggle.active {
     border-color: #1a3a6b;
     background: rgba(26,58,107,.06);
@@ -599,7 +604,29 @@ select.form-control { cursor: pointer; }
 }
 .type-icon  { font-size: 36px; margin-bottom: 8px; }
 .type-label { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
-.type-sub   { font-size: 12px; color: var(--text-muted); }
+.type-sub   { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.selection-tip {
+    margin: 0 20px 20px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(26,58,107,.05);
+    color: var(--text-primary);
+    border: 1px solid rgba(26,58,107,.12);
+    font-size: 13px;
+}
+
+#equipment-section,
+#book-section {
+    transition: opacity .25s ease, transform .25s ease;
+    opacity: 1;
+}
+
+#equipment-section[style*="display: none"],
+#book-section[style*="display: none"] {
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+}
 
 /* ============================================================
    FILTER BAR (Assets page)
@@ -639,8 +666,7 @@ select.form-control { cursor: pointer; }
     flex-shrink: 0;
 }
 .alert-close:hover { opacity: 1; }
-
-/* ============================================================
+./* ============================================================
    NOTIFICATION LIST (Dashboard + Notifications page)
 ============================================================ */
 .notif-list { padding: 4px 0; }

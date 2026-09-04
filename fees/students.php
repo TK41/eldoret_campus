@@ -8,9 +8,15 @@ $pageTitle  = 'Students';
 $activePage = 'fees_students';
 $db = getDB();
 
-$groupFilter  = $_GET['group'] ?? '';
+$groupFilter  = intval($_GET['group'] ?? 0);
 $statusFilter = $_GET['status'] ?? '';
 $search       = trim($_GET['q'] ?? '');
+
+$filterQuery = http_build_query([
+    'group' => $groupFilter ?: null,
+    'status' => $statusFilter ?: null,
+    'q' => $search ?: null,
+]);
 
 $where = ['s.is_active=1'];
 $params = [];
@@ -22,7 +28,7 @@ $whereSQL = implode(' AND ', $where);
 
 $students = $db->prepare("
     SELECT s.*,
-           g.name AS group_name,
+           CONCAT(g.name, IF(g.academic_year <> '', CONCAT(' (', g.academic_year, ')'), '')) AS group_name,
            COALESCE(SUM(p.amount),0) AS paid,
            s.total_fees - COALESCE(SUM(p.amount),0) AS balance
     FROM fee_students s
@@ -58,7 +64,7 @@ include __DIR__ . '/partials/header.php';
 <div class="page-header">
     <div>
         <h1 class="page-title">👥 Students</h1>
-        <p class="page-subtitle"><?= count($students) ?> student<?= count($students) !== 1 ? 's' : '' ?> shown</p>
+        <p class="page-subtitle" id="students-count"><?= count($students) ?> student<?= count($students) !== 1 ? 's' : '' ?> shown</p>
     </div>
     <div style="display:flex;gap:8px">
         <a href="<?= APP_ROOT ?>/fees/add_student.php" class="btn btn-primary">➕ Add Student</a>
@@ -66,24 +72,78 @@ include __DIR__ . '/partials/header.php';
     </div>
 </div>
 
-<div class="filter-bar">
-    <input type="text" id="search-input" placeholder="🔍 Search name or Adm No…"
-           value="<?= htmlspecialchars($search) ?>" oninput="filterStudents()">
-    <select id="group-filter" onchange="filterStudents()">
+<form method="get" action="<?= APP_ROOT ?>/fees/students.php" class="filter-bar" id="students-filter-form">
+    <input type="text" id="search-input" name="q" placeholder="🔍 Search name or Adm No…"
+           value="<?= htmlspecialchars($search) ?>">
+    <select id="group-filter" name="group" onchange="this.form.submit()">
         <option value="">All Groups</option>
-        <?php foreach ($groups as $g): ?>
+        <?php foreach ($groups as $g):
+            $groupLabel = $g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : '');
+        ?>
             <option value="<?= $g['group_id'] ?>" <?= $groupFilter == $g['group_id'] ? 'selected' : '' ?>>
-                <?= htmlspecialchars($g['name']) ?>
+                <?= htmlspecialchars($groupLabel) ?>
             </option>
         <?php endforeach; ?>
     </select>
-    <select id="status-filter" onchange="filterStudents()">
+    <select id="status-filter" name="status" onchange="this.form.submit()">
         <option value="">All Status</option>
         <option value="paid"    <?= $statusFilter==='paid'    ? 'selected':'' ?>>Fully Paid</option>
         <option value="partial" <?= $statusFilter==='partial' ? 'selected':'' ?>>Partial</option>
         <option value="none"    <?= $statusFilter==='none'    ? 'selected':'' ?>>No Payment</option>
     </select>
-</div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('students-filter-form');
+    const searchInput = document.getElementById('search-input');
+    const table = document.getElementById('students-table');
+    const countEl = document.getElementById('students-count');
+    const noResults = document.getElementById('no-results');
+
+    if (!form || !searchInput || !table || !countEl) return;
+
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+    function updateCount(visible) {
+        countEl.textContent = visible + ' student' + (visible !== 1 ? 's' : '') + ' shown';
+    }
+
+    function filterTable() {
+        const q = searchInput.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(tr => {
+            const name = (tr.cells[0]?.textContent || '').toLowerCase();
+            const adm = (tr.cells[1]?.textContent || '').toLowerCase();
+            if (!q || name.includes(q) || adm.includes(q)) {
+                tr.style.display = '';
+                visible++;
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+        if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
+        updateCount(visible);
+    }
+
+    let debounceTimer;
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(filterTable, 250);
+    });
+
+    // Allow Enter to submit the form for a server-side search if desired
+    searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.submit();
+        }
+    });
+
+    // Run initial filter if there's an existing query
+    if (searchInput.value.trim()) filterTable();
+});
+</script>
 
 <div class="card">
     <div class="card-body" style="padding:0">
@@ -92,6 +152,7 @@ include __DIR__ . '/partials/header.php';
                 No students found. <a href="<?= APP_ROOT ?>/fees/import.php">Import from Excel</a> or <a href="<?= APP_ROOT ?>/fees/add_student.php">add manually</a>.
             </div>
         <?php else: ?>
+        <div id="no-results" style="display:none;padding:20px;text-align:center;color:var(--text-muted)">No students match your search.</div>
         <table class="data-table" id="students-table">
             <thead><tr>
                 <th>Student Name</th>
@@ -123,8 +184,8 @@ include __DIR__ . '/partials/header.php';
                     </td>
                     <td><span class="status-pill status-<?= $status[0] ?>"><?= $status[1] ?></span></td>
                     <td>
-                        <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $s['fee_student_id'] ?>" class="btn btn-ghost btn-sm">View</a>
-                        <a href="<?= APP_ROOT ?>/fees/add_payment.php?student_id=<?= $s['fee_student_id'] ?>" class="btn btn-primary btn-sm">+ Pay</a>
+                        <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $s['fee_student_id'] ?>&<?= $filterQuery ?>" class="btn btn-ghost btn-sm">View</a>
+                        <a href="<?= APP_ROOT ?>/fees/add_payment.php?student_id=<?= $s['fee_student_id'] ?>&<?= $filterQuery ?>" class="btn btn-primary btn-sm">+ Pay</a>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -133,24 +194,5 @@ include __DIR__ . '/partials/header.php';
         <?php endif; ?>
     </div>
 </div>
-
-<script>
-function filterStudents() {
-    const q     = document.getElementById('search-input').value.toLowerCase();
-    const group = document.getElementById('group-filter').value;
-    const status = document.getElementById('status-filter').value;
-    const rows  = document.querySelectorAll('#students-table tbody tr');
-    rows.forEach(row => {
-        const name    = row.cells[0].textContent.toLowerCase();
-        const adm     = row.cells[1].textContent.toLowerCase();
-        const rowGrp  = row.cells[2].textContent;
-        const rowStat = row.querySelector('.status-pill')?.className || '';
-        const matchQ  = !q || name.includes(q) || adm.includes(q);
-        const matchG  = !group || rowGrp.includes(document.getElementById('group-filter').options[document.getElementById('group-filter').selectedIndex].text);
-        const matchS  = !status || rowStat.includes('status-' + status);
-        row.style.display = (matchQ && matchG && matchS) ? '' : 'none';
-    });
-}
-</script>
 
 <?php include __DIR__ . '/partials/footer.php'; ?>

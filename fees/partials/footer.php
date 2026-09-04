@@ -8,5 +8,6 @@
 </footer>
 
 <script src="<?= APP_ROOT ?>/assets/js/main.js?v=<?= @filemtime(__DIR__ . '/../../assets/js/main.js') ?>"></script>
+<script src="<?= APP_ROOT ?>/assets/js/mobile.js?v=<?= @filemtime(__DIR__ . '/../../assets/js/mobile.js') ?>"></script>
 </body>
 </html>

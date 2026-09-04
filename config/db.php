@@ -6,6 +6,9 @@
 // Default XAMPP: host=localhost, user=root, pass=(empty)
 // ============================================================
 
+// Set timezone to Kenya (Africa/Nairobi)
+date_default_timezone_set('Africa/Nairobi');
+
 // -- Database credentials --
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'kimc_inventory');
@@ -35,12 +38,12 @@ function getDB(): PDO {
 
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+            // Set MySQL session timezone to UTC for consistent storage
+            $pdo->exec("SET time_zone='+00:00'");
         } catch (PDOException $e) {
-            // In production, log this instead of displaying
-            die(json_encode([
-                'error' => 'Database connection failed. Check config/db.php settings.',
-                'detail' => $e->getMessage()
-            ]));
+            http_response_code(503);
+            header('Location: ' . APP_ROOT . '/maintenance.php', true, 503);
+            exit;
         }
 
         // ============================================================

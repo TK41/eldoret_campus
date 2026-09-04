@@ -16,6 +16,7 @@ const THEME_KEY = 'kimc_theme';
 (function initTheme() {
     const saved = localStorage.getItem(THEME_KEY) || 'light';
     document.documentElement.setAttribute('data-theme', saved);
+    document.documentElement.style.colorScheme = saved;
     updateThemeIcon(saved);
 })();
 
@@ -23,6 +24,7 @@ function toggleTheme() {
     const current = document.documentElement.getAttribute('data-theme');
     const next    = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
+    document.documentElement.style.colorScheme = next;
     localStorage.setItem(THEME_KEY, next);
     updateThemeIcon(next);
 }
@@ -31,6 +33,36 @@ function updateThemeIcon(theme) {
     const iconEl = document.getElementById('theme-icon');
     if (iconEl) iconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
 }
+
+// ============================================================
+// HEARTBEAT FOR ADMIN PRESENCE
+// Automatically update last_seen for the current admin on every page.
+// ============================================================
+(function initHeartbeat() {
+    let basePath = '';
+    const scripts = Array.from(document.getElementsByTagName('script'));
+    const mainScript = scripts.find(s => s.src && /\/assets\/js\/main\.js(?:\?|$)/.test(s.src));
+
+    if (mainScript && mainScript.src) {
+        try {
+            const url = new URL(mainScript.src, window.location.origin);
+            const match = url.pathname.match(/^(.*)\/assets\/js\/main\.js$/);
+            if (match) {
+                basePath = match[1];
+            }
+        } catch (e) {
+            basePath = '';
+        }
+    }
+
+    const heartbeatUrl = (basePath ? basePath : '') + '/api/heartbeat.php';
+    const heartbeat = () => fetch(heartbeatUrl, { credentials: 'same-origin' }).catch(() => {});
+
+    document.addEventListener('DOMContentLoaded', function () {
+        heartbeat();
+        setInterval(heartbeat, 45000);
+    });
+})();
 
 
 // ============================================================
@@ -188,18 +220,11 @@ function openKitCheckin(groupId, kitName, hoursOverdue, componentCount) {
     document.getElementById('kci-count').textContent = componentCount + ' item' + (componentCount !== 1 ? 's' : '');
 
     const finePanel = document.getElementById('kci-fine-panel');
-    const fineCalc  = document.getElementById('kci-fine-calc');
     const fineAmt   = document.getElementById('kci-fine-amt');
 
-    if (hoursOverdue > 0) {
-        const fine       = hoursOverdue * fineRates.equipment;
-        fineCalc.textContent    = hoursOverdue + 'h overdue × KES ' + fineRates.equipment + '/h = KES ' + fine.toFixed(2);
-        fineAmt.value           = fine.toFixed(2);
-        finePanel.style.display = 'block';
-    } else {
-        finePanel.style.display = 'none';
-        fineAmt.value = '0';
-    }
+    // Kits are equipment loans, so overdue fines are not applied here.
+    finePanel.style.display = 'none';
+    fineAmt.value = '0';
 
     openModal('kit-checkin-modal');
 }
@@ -212,17 +237,10 @@ function openSingleCheckin(txnId, assetName, hoursOverdue, assetType) {
     const fineCalc  = document.getElementById('sci-fine-calc');
     const fineAmt   = document.getElementById('sci-fine-amt');
 
-    if (hoursOverdue > 0) {
-        let fine, desc;
-        if (assetType === 'equipment') {
-            fine = hoursOverdue * fineRates.equipment;
-            desc = hoursOverdue + 'h overdue × KES ' + fineRates.equipment + '/h = KES ' + fine.toFixed(2);
-        } else {
-            const days = Math.ceil(hoursOverdue / 24);
-            fine = days * fineRates.book;
-            desc = days + ' day(s) overdue × KES ' + fineRates.book + '/day = KES ' + fine.toFixed(2);
-        }
-        fineCalc.textContent    = desc;
+    if (hoursOverdue > 0 && assetType === 'book') {
+        const days = Math.ceil(hoursOverdue / 24);
+        const fine = days * fineRates.book;
+        fineCalc.textContent    = days + ' day(s) overdue × KES ' + fineRates.book + '/day = KES ' + fine.toFixed(2);
         fineAmt.value           = fine.toFixed(2);
         finePanel.style.display = 'block';
     } else {

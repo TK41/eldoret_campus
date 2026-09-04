@@ -11,7 +11,7 @@ $id = intval($_GET['id'] ?? 0);
 if (!$id) { header('Location: ' . APP_ROOT . '/fees/dashboard.php'); exit; }
 
 $student = $db->prepare("
-    SELECT s.*, g.name AS group_name
+    SELECT s.*, CONCAT(g.name, IF(g.academic_year <> '', CONCAT(' (', g.academic_year, ')'), '')) AS group_name
     FROM fee_students s JOIN fee_groups g ON g.group_id=s.group_id
     WHERE s.fee_student_id=?
 ");
@@ -179,7 +179,8 @@ include __DIR__ . '/partials/header.php';
                             <select name="next_group_id" class="form-control">
                                 <option value="">— Select semester —</option>
                                 <?php foreach ($groups as $g): ?>
-                                    <option value="<?= $g['group_id'] ?>"><?= htmlspecialchars($g['name']) ?> (KES <?= number_format($g['total_fees']) ?>)</option>
+                                    <?php $groupLabel = $g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : ''); ?>
+                                <option value="<?= $g['group_id'] ?>"><?= htmlspecialchars($groupLabel) ?> (KES <?= number_format($g['total_fees']) ?>)</option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

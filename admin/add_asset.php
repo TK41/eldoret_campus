@@ -309,6 +309,11 @@ function getFormValue($field, $default = '') {
     }
     return $default;
 }
+
+$selectedType = getFormValue('asset_type', '');
+if (!in_array($selectedType, ['book', 'equipment'], true)) {
+    $selectedType = '';
+}
 ?>
 
 <!-- ── Page Header ── -->
@@ -338,29 +343,23 @@ function getFormValue($field, $default = '') {
     <!-- ── Step 1: Choose type ── -->
     <div class="card" style="margin-bottom:20px">
         <div class="card-header">
-            <h2 class="card-title">Step 1 — Item Type</h2>
+            <h2 class="card-title">Step 1 — Choose Item Type</h2>
         </div>
         <div class="card-body">
-            <div class="type-toggle-group">
+            <div class="form-grid" style="padding:0;gap:12px">
+                <div class="form-group full-width">
+                    <label for="asset_type">Item Type <span class="required">*</span></label>
+                    <select id="asset_type" name="asset_type" class="form-control" onchange="switchType(this.value)">
+                        <option value="" <?= $selectedType === '' ? 'selected' : '' ?>>Select item type</option>
+                        <option value="equipment" <?= $selectedType === 'equipment' ? 'selected' : '' ?>>Equipment</option>
+                        <option value="book" <?= $selectedType === 'book' ? 'selected' : '' ?>>Book</option>
+                    </select>
+                    <span class="field-hint">Select an option to show the matching form fields.</span>
+                </div>
+            </div>
 
-                <label class="type-toggle <?= getFormValue('asset_type','book') === 'equipment' ? 'active' : '' ?>">
-                    <input type="radio" name="asset_type" value="equipment"
-                           <?= getFormValue('asset_type','book') === 'equipment' ? 'checked' : '' ?>
-                           onchange="switchType('equipment')">
-                    <div class="type-icon">📷</div>
-                    <div class="type-label">Media Equipment</div>
-                    <div class="type-sub">Cameras, Laptops, Mics, Lights, Tripods...</div>
-                </label>
-
-                <label class="type-toggle <?= getFormValue('asset_type','book') !== 'equipment' ? 'active' : '' ?>">
-                    <input type="radio" name="asset_type" value="book"
-                           <?= getFormValue('asset_type','book') !== 'equipment' ? 'checked' : '' ?>
-                           onchange="switchType('book')">
-                    <div class="type-icon">📚</div>
-                    <div class="type-label">Library Book</div>
-                    <div class="type-sub">Textbooks, Journals, Reference materials...</div>
-                </label>
-
+            <div class="selection-tip" id="selection-tip">
+                <?= $selectedType ? 'You selected <strong>' . ($selectedType === 'equipment' ? 'Equipment' : 'Book') . '</strong>. Fill in the matching fields below.' : 'Choose equipment or a book to reveal the matching details form.' ?>
             </div>
         </div>
     </div>
@@ -375,14 +374,14 @@ function getFormValue($field, $default = '') {
             <div class="form-group full-width">
                 <label for="name">Item Name <span class="required">*</span></label>
                 <input type="text" id="name" name="name" class="form-control" required
-                       placeholder="e.g. Canon EOS R5 Body or Cinematography Today 4th Ed."
+                       placeholder="<?= $selectedType === 'equipment' ? 'e.g. Canon EOS R5 Body' : ($selectedType === 'book' ? 'e.g. Cinematography Today 4th Ed.' : 'e.g. Enter item name') ?>"
                        value="<?= htmlspecialchars(getFormValue('name')) ?>">
             </div>
 
             <div class="form-group">
                 <label for="asset_code">Asset Code <span class="required">*</span></label>
                 <input type="text" id="asset_code" name="asset_code" class="form-control" required
-                       placeholder="e.g. EQ-001 or BK-001"
+                       placeholder="<?= $selectedType === 'equipment' ? 'e.g. EQ-001' : ($selectedType === 'book' ? 'e.g. BK-001' : 'e.g. EQ-001 or BK-001') ?>"
                        value="<?= htmlspecialchars(getFormValue('asset_code')) ?>"
                        style="text-transform:uppercase">
                 <span class="field-hint">Must be unique. Use EQ- for equipment, BK- for books.</span>
@@ -445,7 +444,7 @@ function getFormValue($field, $default = '') {
 
     <!-- ── Step 3a: Equipment Details ── -->
     <div class="card" id="equipment-section"
-         style="margin-bottom:20px;display:<?= getFormValue('asset_type','book') === 'equipment' ? 'block' : 'none' ?>">
+         style="margin-bottom:20px;display:<?= $selectedType === 'equipment' ? 'block' : 'none' ?>">
         <div class="card-header">
             <h2 class="card-title">Step 3 — Equipment Details</h2>
         </div>
@@ -490,7 +489,7 @@ function getFormValue($field, $default = '') {
 
     <!-- ── Step 3b: Book Details ── -->
     <div class="card" id="book-section"
-         style="margin-bottom:20px;display:<?= getFormValue('asset_type','book') !== 'equipment' ? 'block' : 'none' ?>">
+         style="margin-bottom:20px;display:<?= $selectedType === 'book' ? 'block' : 'none' ?>">
         <div class="card-header">
             <h2 class="card-title">Step 3 — Book Details</h2>
         </div>
@@ -546,24 +545,85 @@ function getFormValue($field, $default = '') {
 </form>
 
 <script>
-function switchType(type) {
-    document.getElementById('equipment-section').style.display = type === 'equipment' ? 'block' : 'none';
-    document.getElementById('book-section').style.display      = type === 'book'      ? 'block' : 'none';
-
-    const codeEl = document.getElementById('asset_code');
-    if (!codeEl.value) codeEl.value = type === 'equipment' ? 'EQ-' : 'BK-';
+function getCodePrefix(type) {
+    if (type === 'equipment') return 'EQ-';
+    if (type === 'book') return 'BK-';
+    return '';
 }
 
-document.getElementById('asset_code').addEventListener('input', function() {
-    this.value = this.value.toUpperCase();
-});
+function switchType(type) {
+    const normalizedType = type === 'equipment' ? 'equipment' : type === 'book' ? 'book' : '';
+    const selectionTip = document.getElementById('selection-tip');
+    const equipmentSection = document.getElementById('equipment-section');
+    const bookSection = document.getElementById('book-section');
+    const nameInput = document.getElementById('name');
+    const codeInput = document.getElementById('asset_code');
+
+    if (normalizedType === 'equipment') {
+        bookSection.style.display = 'none';
+        setTimeout(function() {
+            equipmentSection.style.display = 'block';
+        }, 10);
+    } else if (normalizedType === 'book') {
+        equipmentSection.style.display = 'none';
+        setTimeout(function() {
+            bookSection.style.display = 'block';
+        }, 10);
+    } else {
+        equipmentSection.style.display = 'none';
+        bookSection.style.display = 'none';
+    }
+
+    if (selectionTip) {
+        selectionTip.innerHTML = normalizedType === 'equipment'
+            ? 'You selected <strong>Equipment</strong>. Fill in the equipment-specific fields below.'
+            : normalizedType === 'book'
+                ? 'You selected <strong>Book</strong>. Fill in the book-specific fields below.'
+                : 'Choose equipment or a book to reveal the matching details form.';
+    }
+
+    if (nameInput) {
+        nameInput.placeholder = normalizedType === 'equipment'
+            ? 'e.g. Canon EOS R5 Body'
+            : normalizedType === 'book'
+                ? 'e.g. Cinematography Today 4th Ed.'
+                : 'e.g. Enter item name';
+    }
+
+    if (codeInput) {
+        codeInput.placeholder = normalizedType === 'equipment'
+            ? 'e.g. EQ-001'
+            : normalizedType === 'book'
+                ? 'e.g. BK-001'
+                : 'e.g. EQ-001 or BK-001';
+
+        const prefix = getCodePrefix(normalizedType);
+        if (prefix) {
+            const currentValue = (codeInput.value || '').toUpperCase().trim();
+            const withoutPrefix = currentValue.replace(/^EQ-/, '').replace(/^BK-/, '');
+            const suffix = withoutPrefix.replace(/^-+/, '').trim();
+            codeInput.value = suffix ? prefix + suffix : prefix;
+        } else {
+            codeInput.value = '';
+        }
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
-    const checked = document.querySelector('input[name="asset_type"]:checked');
-    if (checked) switchType(checked.value);
-    document.querySelectorAll('input[name="asset_type"]').forEach(r =>
-        r.addEventListener('change', function() { switchType(this.value); })
-    );
+    const assetCodeInput = document.getElementById('asset_code');
+    if (assetCodeInput) {
+        assetCodeInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    }
+
+    const typeSelect = document.getElementById('asset_type');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', function() {
+            switchType(this.value);
+        });
+        switchType(typeSelect.value);
+    }
 });
 </script>
 

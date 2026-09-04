@@ -30,25 +30,29 @@ $overpaid = $db->query("
     AND (SELECT COALESCE(SUM(p.amount),0) FROM fee_payments p WHERE p.fee_student_id=s.fee_student_id) > s.total_fees
 ")->fetchColumn();
 
-// This month
+// This month — based on when entry was posted (created_at)
 $monthCollected = $db->query("
     SELECT COALESCE(SUM(p.amount),0) FROM fee_payments p
     JOIN fee_students s ON s.fee_student_id=p.fee_student_id
     WHERE s.is_active=1
-    AND YEAR(p.date_paid)=YEAR(CURDATE()) AND MONTH(p.date_paid)=MONTH(CURDATE())
+    AND YEAR(p.created_at)=YEAR(NOW()) AND MONTH(p.created_at)=MONTH(NOW())
 ")->fetchColumn();
 
-// Today
+// Today — based on when entry was posted (created_at)
 $todayCollected = $db->query("
     SELECT COALESCE(SUM(p.amount),0) FROM fee_payments p
     JOIN fee_students s ON s.fee_student_id=p.fee_student_id
-    WHERE s.is_active=1 AND p.date_paid=CURDATE()
+    WHERE s.is_active=1 AND DATE(p.created_at)=CURDATE()
 ")->fetchColumn();
 
 // Per-group breakdown — use subqueries to get correct sums per student, then aggregate
 $groups = $db->query("
     SELECT
-        g.group_id, g.name, g.total_fees,
+        g.group_id,
+        CONCAT(g.name, IF(g.academic_year <> '', CONCAT(' (', g.academic_year, ')'), '')) AS group_name,
+        g.name,
+        g.academic_year,
+        g.total_fees,
         COUNT(s.fee_student_id) AS student_count,
         COALESCE(SUM(
             (SELECT COALESCE(SUM(p2.amount),0) FROM fee_payments p2 WHERE p2.fee_student_id=s.fee_student_id)
@@ -62,7 +66,8 @@ $groups = $db->query("
 
 // Overpaid students list
 $overpaidStudents = $db->query("
-    SELECT s.fee_student_id, s.full_name, s.student_id, s.total_fees, g.name AS group_name,
+    SELECT s.fee_student_id, s.full_name, s.student_id, s.total_fees,
+           CONCAT(g.name, IF(g.academic_year <> '', CONCAT(' (', g.academic_year, ')'), '')) AS group_name,
            (SELECT COALESCE(SUM(p.amount),0) FROM fee_payments p WHERE p.fee_student_id=s.fee_student_id) AS paid
     FROM fee_students s
     JOIN fee_groups g ON g.group_id=s.group_id
@@ -124,9 +129,10 @@ include __DIR__ . '/partials/header.php';
         <h1 class="page-title">💳 Fees Dashboard</h1>
         <p class="page-subtitle">Overview of all student fee collections</p>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="<?= APP_ROOT ?>/fees/add_payment.php" class="btn btn-primary">➕ Post Payment</a>
-        <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost">👥 All Students</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <a href="<?= APP_ROOT ?>/portal.php" class="btn btn-ghost btn-sm" style="text-decoration:none">🏠 Portal</a>
+        <a href="<?= APP_ROOT ?>/fees/add_payment.php" class="btn btn-primary btn-sm">➕ Post Payment</a>
+        <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost btn-sm">👥 All Students</a>
     </div>
 </div>
 
@@ -148,41 +154,90 @@ include __DIR__ . '/partials/header.php';
         <div class="sub"><?= $totalFeesDue > 0 ? number_format(($totalBalance/$totalFeesDue)*100,1) : 0 ?>% still owed</div>
     </div>
     <div class="fees-stat accent-green">
-        <div class="label">This Month</div>
+        <div class="label">This Month (Posted)</div>
         <div class="value">KES <?= number_format($monthCollected) ?></div>
-        <div class="sub">Today: KES <?= number_format($todayCollected) ?></div>
+        <div class="sub">Posted today: KES <?= number_format($todayCollected) ?></div>
     </div>
-
 </div>
 
 <!-- Overpaid students alert -->
+<!-- Overpaid students alert -->
 <?php if (!empty($overpaidStudents)): ?>
 <div class="overpay-card">
-    <div class="overpay-title">⚠️ Students with Excess Payments</div>
-    <table class="data-table">
-        <thead><tr>
-            <th>Student</th><th>Adm No</th><th>Group</th>
-            <th>Total Fees</th><th>Amount Paid</th><th>Excess</th><th>Action</th>
-        </tr></thead>
-        <tbody>
-        <?php foreach ($overpaidStudents as $op):
-            $excess = $op['paid'] - $op['total_fees'];
-        ?>
-            <tr>
-                <td style="font-weight:600"><?= htmlspecialchars($op['full_name']) ?></td>
-                <td><code style="font-size:12px"><?= htmlspecialchars($op['student_id']) ?></code></td>
-                <td style="font-size:12px"><?= htmlspecialchars($op['group_name']) ?></td>
-                <td style="font-family:'Space Mono',monospace;font-size:12px">KES <?= number_format($op['total_fees']) ?></td>
-                <td style="font-family:'Space Mono',monospace;font-size:12px;color:#16a34a">KES <?= number_format($op['paid']) ?></td>
-                <td><span class="excess-amount">KES <?= number_format($excess) ?></span></td>
-                <td>
-                    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $op['fee_student_id'] ?>" class="btn btn-ghost btn-sm">View</a>
-                    <a href="<?= APP_ROOT ?>/fees/overpayment.php?id=<?= $op['fee_student_id'] ?>" class="btn btn-sm" style="background:rgba(124,58,237,.1);color:#7c3aed;border:1px solid rgba(124,58,237,.3);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;text-decoration:none">Resolve</a>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
+
+    <div class="overpay-title">
+        ⚠️ Students with Excess Payments
+    </div>
+
+    <!-- Mobile scroll wrapper -->
+    <div class="table-scroll">
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Adm No</th>
+                    <th>Group</th>
+                    <th>Total Fees</th>
+                    <th>Amount Paid</th>
+                    <th>Excess</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+            <?php foreach ($overpaidStudents as $op):
+                $excess = $op['paid'] - $op['total_fees'];
+            ?>
+                <tr>
+                    <td style="font-weight:600">
+                        <?= htmlspecialchars($op['full_name']) ?>
+                    </td>
+
+                    <td>
+                        <code style="font-size:12px">
+                            <?= htmlspecialchars($op['student_id']) ?>
+                        </code>
+                    </td>
+
+                    <td style="font-size:12px">
+                        <?= htmlspecialchars($op['group_name']) ?>
+                    </td>
+
+                    <td style="font-family:'Space Mono',monospace;font-size:12px">
+                        KES <?= number_format($op['total_fees']) ?>
+                    </td>
+
+                    <td style="font-family:'Space Mono',monospace;font-size:12px;color:#16a34a">
+                        KES <?= number_format($op['paid']) ?>
+                    </td>
+
+                    <td>
+                        <span class="excess-amount">
+                            KES <?= number_format($excess) ?>
+                        </span>
+                    </td>
+
+                    <td>
+                        <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $op['fee_student_id'] ?>"
+                           class="btn btn-ghost btn-sm">
+                            View
+                        </a>
+
+                        <a href="<?= APP_ROOT ?>/fees/overpayment.php?id=<?= $op['fee_student_id'] ?>"
+                           class="btn btn-sm"
+                           style="background:rgba(124,58,237,.1);color:#7c3aed;border:1px solid rgba(124,58,237,.3);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;text-decoration:none">
+                            Resolve
+                        </a>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+
+        </table>
+
+    </div>
+
 </div>
 <?php endif; ?>
 
@@ -194,7 +249,7 @@ include __DIR__ . '/partials/header.php';
     $over = $g['collected'] > $g['expected'];
 ?>
     <div class="group-card">
-        <div class="group-name"><?= htmlspecialchars($g['name']) ?></div>
+        <div class="group-name"><?= htmlspecialchars($g['group_name']) ?></div>
         <div class="group-meta"><?= $g['student_count'] ?> students · KES <?= number_format($g['total_fees']) ?>/student</div>
         <div class="progress-bar">
             <div class="progress-fill <?= $over ? 'over' : ($pct>=100?'full':'') ?>" style="width:<?= min(100,$pct) ?>%"></div>

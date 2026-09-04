@@ -1,0 +1,600 @@
+/* ============================================================
+   assets/css/mobile.css
+   KIMC Eldoret — Mobile Responsive Override
+   Drop this file into assets/css/ then add ONE line to every
+   module header partial:
+       <link rel="stylesheet" href="<?= APP_ROOT ?>/assets/css/mobile.css">
+   Place it AFTER style.css and theme.css imports.
+   ============================================================ */
+
+
+/* ============================================================
+   1. TOPBAR — slim, no brand text, no logo, no theme toggle
+============================================================ */
+@media (max-width: 768px) {
+
+    /* Remove brand name, sub-label and logo entirely */
+    .topbar-brand img,
+    .topbar-brand .brand-text,
+    .brand-name,
+    .brand-sub { display: none !important; }
+
+    /* Hide theme toggle button */
+    .theme-toggle-btn,
+    .icon-btn[onclick*="toggleTheme"],
+    .icon-btn[title*="theme"],
+    .icon-btn[title*="Theme"] { display: none !important; }
+
+    /* Shrink topbar height */
+    .topbar {
+        height: 50px;
+        padding: 0 10px;
+    }
+
+    /* Push layout offset to match new topbar height */
+    .layout { padding-top: 50px; }
+    .sidebar { top: 50px; }
+
+    /* User menu — show avatar only, hide name & role */
+    .user-menu .user-info,
+    .user-name,
+    .user-role,
+    .dropdown-arrow { display: none !important; }
+
+    .user-menu {
+        padding: 4px 8px;
+        gap: 0;
+    }
+
+    .avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+
+    /* Keep the portal home icon button visible */
+    .icon-btn { padding: 6px 8px; font-size: 15px; }
+
+    /* Hamburger always visible */
+    .sidebar-toggle {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        font-size: 20px;
+        border-radius: 8px;
+        background: rgba(255,255,255,.08);
+        border: 1px solid rgba(255,255,255,.12);
+        color: #fff;
+        cursor: pointer;
+    }
+}
+
+
+/* ============================================================
+   2. SIDEBAR — full-width overlay on mobile, closes on tap
+============================================================ */
+@media (max-width: 768px) {
+
+    .sidebar {
+        width: 260px;
+        transform: translateX(-100%);
+        transition: transform .25s cubic-bezier(.4,0,.2,1);
+        z-index: 200;
+        box-shadow: 4px 0 24px rgba(0,0,0,.25);
+    }
+
+    .sidebar.open { transform: translateX(0); }
+
+    /* Dark scrim behind open sidebar */
+    body.sidebar-open::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.45);
+        z-index: 190;
+    }
+
+    /* Nav items — bigger tap targets */
+    .nav-item {
+        padding: 13px 20px;
+        font-size: 14px;
+    }
+    .nav-section-label { padding: 14px 20px 6px; }
+}
+
+
+/* ============================================================
+   3. MAIN CONTENT — full width, comfortable padding
+============================================================ */
+@media (max-width: 768px) {
+
+    .main-content {
+        margin-left: 0 !important;
+        padding: 16px 14px 48px;
+    }
+
+    .app-footer {
+        margin-left: 0 !important;
+        flex-direction: column;
+        gap: 4px;
+        text-align: center;
+        padding: 12px 16px;
+        font-size: 11px;
+    }
+}
+
+
+/* ============================================================
+   4. PAGE HEADER — stack title & buttons vertically
+============================================================ */
+@media (max-width: 768px) {
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .page-title { font-size: 18px; }
+    .page-subtitle { font-size: 12px; }
+
+    /* Button groups in page header wrap and fill width */
+    .page-header > div:last-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+    }
+    .page-header .btn { flex: 1; justify-content: center; min-width: 120px; }
+}
+
+
+/* ============================================================
+   5. STAT CARDS — 2-col on tablet, 1-col on small phones
+============================================================ */
+@media (max-width: 768px) {
+
+    .stats-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .stat-card { padding: 14px 16px; }
+    .stat-value { font-size: 26px; }
+    .stat-label { font-size: 10px; }
+}
+
+@media (max-width: 400px) {
+    .stats-grid { grid-template-columns: 1fr !important; }
+    .stat-value { font-size: 30px; }
+}
+
+
+/* ============================================================
+   6. CARDS — edge-to-edge on phones
+============================================================ */
+@media (max-width: 768px) {
+
+    .card { border-radius: 10px; }
+
+    .card-header {
+        padding: 12px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .card-body { padding: 14px; }
+
+    /* Two-col grids collapse to single column */
+    .two-col-grid,
+    [style*="grid-template-columns: 2fr 1fr"],
+    [style*="grid-template-columns: 1fr 1fr"],
+    [style*="grid-template-columns:2fr 1fr"],
+    [style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+
+/* ============================================================
+   7. DATA TABLES — horizontally scrollable, readable cells
+============================================================ */
+@media (max-width: 768px) {
+
+    /* Wrap every data-table in a scroll container */
+    .card-body,
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    .data-table { min-width: 520px; }
+
+    .data-table th {
+        padding: 8px 10px;
+        font-size: 9px;
+    }
+
+    .data-table td {
+        padding: 9px 10px;
+        font-size: 12px;
+    }
+
+    /* Prevent long text breaking layout */
+    .data-table td, .data-table th { white-space: nowrap; }
+
+    /* Allow wrapping only in name/description columns */
+    .data-table td:nth-child(2) { white-space: normal; min-width: 120px; }
+}
+
+
+/* ============================================================
+   8. FORMS — single column, full-width inputs
+============================================================ */
+@media (max-width: 768px) {
+
+    .form-grid,
+    .form-grid.cols-2,
+    .form-grid.cols-3 {
+        grid-template-columns: 1fr !important;
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .form-group.full-width { grid-column: 1 !important; }
+
+    .form-control { font-size: 16px; } /* prevents iOS zoom on focus */
+
+    .form-actions { flex-wrap: wrap; }
+    .form-actions .btn { flex: 1; justify-content: center; min-width: 120px; }
+
+    /* Type toggle (add asset) */
+    .type-toggle-group { grid-template-columns: 1fr !important; gap: 10px; padding: 14px; }
+    .type-toggle { padding: 16px; }
+    .type-icon { font-size: 28px; }
+
+    /* Score inputs on mark entry grid */
+    .sc-in { width: 60px !important; }
+}
+
+
+/* ============================================================
+   9. BUTTONS — larger tap targets on mobile
+============================================================ */
+@media (max-width: 768px) {
+
+    .btn { padding: 9px 14px; font-size: 13px; }
+    .btn-sm { padding: 6px 10px; font-size: 11px; }
+
+    /* Inline button groups in table cells — prevent overflow */
+    td .btn, td form { display: inline-flex; margin: 2px 1px; }
+}
+
+
+/* ============================================================
+   10. FILTER BAR — stack vertically on small screens
+============================================================ */
+@media (max-width: 768px) {
+
+    .filter-form,
+    .filter-bar,
+    .marks-filter-bar,
+    .fr, .tc-filter {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding: 12px !important;
+    }
+
+    .filter-form input,
+    .filter-form select,
+    .filter-bar input,
+    .filter-bar select,
+    .marks-filter-bar select,
+    .fr input, .fr select,
+    .tc-filter select {
+        width: 100% !important;
+        font-size: 16px; /* prevent iOS zoom */
+    }
+
+    .search-input-wrap { min-width: 0 !important; }
+
+    /* View toggle buttons */
+    .view-toggle, .vbtn { width: 100%; justify-content: center; }
+}
+
+
+/* ============================================================
+   11. ALERTS — full width, readable
+============================================================ */
+@media (max-width: 768px) {
+
+    .alert {
+        font-size: 13px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        flex-wrap: wrap;
+    }
+}
+
+
+/* ============================================================
+   12. MODALS — full screen on phones
+============================================================ */
+@media (max-width: 768px) {
+
+    .modal-overlay {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+
+    .modal-box,
+    [style*="max-width:500px"],
+    [style*="max-width: 500px"],
+    [style*="max-width:560px"],
+    [style*="max-width: 560px"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 16px 16px 0 0 !important;
+        max-height: 90vh;
+        overflow-y: auto;
+        margin: 0 !important;
+    }
+}
+
+
+/* ============================================================
+   13. MARKS ENTRY TABLE (exams/enter_marks.php)
+   Sticky columns already handle scroll; just adjust sizing
+============================================================ */
+@media (max-width: 768px) {
+
+    .marks-tbl,
+    .marks-table { min-width: 580px; font-size: 12px; }
+
+    .marks-tbl th:nth-child(1),
+    .marks-tbl td:nth-child(1) { min-width: 140px !important; }
+
+    .marks-tbl th:nth-child(2),
+    .marks-tbl td:nth-child(2) { min-width: 90px !important; left: 140px !important; }
+
+    .marks-wrap, .marks-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+
+/* ============================================================
+   14. STUDENT DETAIL PAGE (fees/student.php)
+   Header card stacks vertically
+============================================================ */
+@media (max-width: 768px) {
+
+    .student-header {
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+
+    .stat-row { gap: 12px !important; flex-wrap: wrap; }
+    .stat-item .val { font-size: 16px !important; }
+    .stat-item .lbl { font-size: 10px !important; }
+
+    /* Print button group in student page */
+    .student-header > div:last-child {
+        flex-direction: row !important;
+        flex-wrap: wrap;
+        align-items: flex-start !important;
+    }
+
+    /* Payments table — hide Posted By on mobile too (redundant on small screen) */
+    .payments-table th:nth-child(7),
+    .payments-table td:nth-child(7) { display: none !important; }
+}
+
+
+/* ============================================================
+   15. ADMISSION APPLICATION VIEW (admissions/application.php)
+============================================================ */
+@media (max-width: 768px) {
+
+    /* Two-col layout → single col */
+    .app-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Info rows stack label above value */
+    .info-row {
+        grid-template-columns: 1fr !important;
+        gap: 2px !important;
+        padding: 8px 0 !important;
+    }
+    .info-label {
+        font-size: 10px !important;
+        color: var(--text-muted) !important;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+    }
+
+    /* Student block accordion on results page */
+    .sb-hd { flex-wrap: wrap; gap: 8px; }
+    .ur { grid-template-columns: 80px 1fr 50px 50px 60px 50px !important; font-size: 11px; }
+}
+
+
+/* ============================================================
+   16. TRANSCRIPT / REPORT CARD (exams/transcripts.php)
+============================================================ */
+@media (max-width: 768px) {
+
+    .tc-card { border-radius: 0 !important; margin: 0 -14px !important; }
+
+    .tc-head { padding: 18px 16px !important; }
+    .tc-head-inner { flex-direction: column !important; gap: 10px !important; text-align: left !important; }
+
+    .tc-stu-name { font-size: 17px !important; }
+    .tc-stu-meta { font-size: 11px !important; line-height: 1.8; }
+
+    .tc-body { padding: 16px !important; }
+
+    .gpa-box { gap: 10px !important; }
+    .gpa-item { min-width: 70px !important; }
+    .gpa-val { font-size: 18px !important; }
+
+    .tc-table { font-size: 11px !important; }
+    .tc-table th, .tc-table td { padding: 7px 8px !important; }
+}
+
+
+/* ============================================================
+   17. DASHBOARD INLINE GRIDS (fees, exams, inventory)
+   Any inline style grid with 2+ columns collapses
+============================================================ */
+@media (max-width: 768px) {
+
+    /* Unit picker grid on enter_marks.php */
+    [style*="grid-template-columns: repeat(auto-fill"] {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    /* Grade distribution bars */
+    [style*="display:grid;grid-template-columns:2fr 1fr"],
+    [style*="display: grid; grid-template-columns: 2fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Top performers + recent entries side by side → stacked */
+    [style*="display:grid;grid-template-columns:1fr 1fr"],
+    [style*="display: grid; grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Stats grids with inline style (e.g. exam dashboard) */
+    [style*="grid-template-columns:repeat(auto-fit,minmax(180px"] {
+        grid-template-columns: 1fr 1fr !important;
+    }
+    [style*="grid-template-columns:repeat(auto-fit,minmax(150px"] {
+        grid-template-columns: 1fr 1fr !important;
+    }
+}
+
+@media (max-width: 400px) {
+    [style*="grid-template-columns:repeat(auto-fit"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+
+/* ============================================================
+   18. BREADCRUMBS & NAVIGATION PILLS
+============================================================ */
+@media (max-width: 768px) {
+
+    /* Breadcrumb wraps */
+    [style*="font-size:12px;color:var(--text-muted)"] {
+        white-space: normal !important;
+        word-break: break-word;
+    }
+
+    /* Prev/Next navigation in application detail */
+    [style*="justify-content:space-between"] .btn-sm {
+        font-size: 11px;
+        padding: 5px 8px;
+    }
+}
+
+
+/* ============================================================
+   19. DOCUMENT UPLOAD GRID (admissions/apply.php)
+============================================================ */
+@media (max-width: 768px) {
+
+    /* 2-col doc grid → 1-col */
+    .file-upload + .file-upload,
+    [style*="grid-template-columns:1fr 1fr"] .file-upload {
+        margin-top: 12px;
+    }
+
+    /* Force single column for doc grids */
+    .section-body [style*="display:grid;grid-template-columns:1fr 1fr"],
+    .section-body [style*="display: grid; grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .file-drop { padding: 14px 16px; }
+    .file-drop-label { font-size: 12px; }
+    .file-drop-hint  { font-size: 10px; }
+}
+
+
+/* ============================================================
+   20. STEP WIZARD PROGRESS BAR (admissions/apply.php)
+============================================================ */
+@media (max-width: 768px) {
+
+    .steps-wrap { position: sticky; top: 50px; } /* match new topbar height */
+
+    .step { padding: 10px 4px; font-size: 10px; gap: 3px; }
+    .step-num { width: 20px; height: 20px; font-size: 9px; }
+
+    /* Hide step label text on very small phones, keep numbers */
+    @media (max-width: 360px) {
+        .step span:last-child { display: none; }
+    }
+}
+
+
+/* ============================================================
+   21. LOCK OVERLAY (exams/enter_marks.php)
+============================================================ */
+@media (max-width: 768px) {
+    .lock-over, .locked-overlay { align-items: center; padding: 20px; }
+    .lock-box, .locked-box { padding: 20px 18px !important; width: 100%; max-width: 300px; }
+}
+
+
+/* ============================================================
+   22. SIDEBAR SCRIM — close sidebar on tap outside
+   (JS in mobile.js handles this; CSS provides the overlay)
+============================================================ */
+.sidebar-scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 190;
+}
+.sidebar-scrim.visible { display: block; }
+
+
+/* ============================================================
+   23. UTILITY — hide elements specifically on mobile
+============================================================ */
+@media (max-width: 768px) {
+    .hide-mobile  { display: none !important; }
+    .show-mobile  { display: block !important; }
+}
+@media (min-width: 769px) {
+    .show-mobile  { display: none !important; }
+}
+
+
+/* ============================================================
+   24. TOUCH IMPROVEMENTS — prevent double-tap zoom, better tap
+============================================================ */
+.btn, .nav-item, .icon-btn, .user-menu,
+.file-drop, .step, .vbtn, .unit-card,
+.check-row, .type-toggle {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+input, select, textarea {
+    /* prevent iOS from zooming on focus if font >= 16px already handled above */
+    font-size: max(16px, 1em);
+}
+
+/* But don't force large font on desktop */
+@media (min-width: 769px) {
+    input, select, textarea { font-size: inherit; }
+    .form-control { font-size: 13.5px; }
+    .sc-in { font-size: 13px; }
+}

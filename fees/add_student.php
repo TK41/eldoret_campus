@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../auth/session.php';
 requireLogin();
+require_once __DIR__ . '/partials/student_sync.php';
 ini_set('display_errors', 0); error_reporting(0);
 
 $pageTitle  = 'Add Student';
@@ -15,11 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $programme   = trim($_POST['programme'] ?? '');
     $group_id    = intval($_POST['group_id'] ?? 0);
     $total_fees  = floatval($_POST['total_fees'] ?? 0);
+    $national_id = trim($_POST['national_id'] ?? '');
+    $gender      = trim($_POST['gender'] ?? '');
 
     if (!$student_id) $errors[] = 'Admission number is required.';
     if (!$full_name)  $errors[] = 'Full name is required.';
     if (!$group_id)   $errors[] = 'Please select a group.';
     if ($total_fees <= 0) $errors[] = 'Total fees must be greater than zero.';
+    if ($gender && !in_array($gender, ['male','female','other'], true)) $errors[] = 'Please select a valid gender.';
 
     if (empty($errors)) {
         // Check duplicate
@@ -32,11 +36,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         $db->prepare("
-            INSERT INTO fee_students (student_id, full_name, programme, group_id, total_fees)
-            VALUES (?,?,?,?,?)
-        ")->execute([$student_id, $full_name, $programme ?: null, $group_id, $total_fees]);
+            INSERT INTO fee_students (student_id, full_name, programme, group_id, total_fees, national_id, gender, email)
+            VALUES (?,?,?,?,?,?,?,NULL)
+        ")->execute([
+            $student_id,
+            $full_name,
+            $programme ?: null,
+            $group_id,
+            $total_fees,
+            $national_id ?: null,
+            $gender ?: null,
+        ]);
         $newId = $db->lastInsertId();
-        setFlash('success', "Student $full_name added successfully.");
+
+        $syncResult = syncToInventory($newId, [
+            'student_id' => $student_id,
+            'full_name'  => $full_name,
+            'programme'  => $programme,
+            'group_id'   => $group_id,
+            'phone'      => '',
+            'is_active'  => 1,
+        ], $db);
+
+        if (!empty($syncResult['email'])) {
+            $db->prepare("UPDATE fee_students SET email=? WHERE fee_student_id = ?")
+               ->execute([$syncResult['email'], $newId]);
+        }
+
+        if (!empty($syncResult['user_id']) && !empty($syncResult['email'])) {
+            setFlash('success', "Student $full_name added successfully. ✉ KIMC email generated: " . htmlspecialchars($syncResult['email']));
+        } else {
+            setFlash('success', "Student $full_name added successfully. Inventory sync completed.");
+        }
+
         header('Location: ' . APP_ROOT . '/fees/student.php?id=' . $newId);
         exit;
     }
@@ -83,19 +115,38 @@ include __DIR__ . '/partials/header.php';
             </div>
             <div class="form-group">
                 <label>Programme</label>
-                <input type="text" name="programme" class="form-control"
-                       placeholder="e.g. CERT IN FILM PRODUCTION"
-                       value="<?= htmlspecialchars($_POST['programme'] ?? '') ?>">
+                <select name="programme" class="form-control" required>
+                    <option value="">— Select programme —</option>
+                    <option value="CERTIFICATE IN FILM PRODUCTION" <?= (($_POST['programme'] ?? '') === 'CERTIFICATE IN FILM PRODUCTION') ? 'selected' : '' ?>>CERTIFICATE IN FILM PRODUCTION</option>
+                    <option value="DIPLOMA IN FILM PRODUCTION" <?= (($_POST['programme'] ?? '') === 'DIPLOMA IN FILM PRODUCTION') ? 'selected' : '' ?>>DIPLOMA IN FILM PRODUCTION</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>National ID</label>
+                <input type="text" name="national_id" class="form-control"
+                       placeholder="Optional national ID number"
+                       value="<?= htmlspecialchars($_POST['national_id'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>Gender</label>
+                <select name="gender" class="form-control">
+                    <option value="">— Select gender —</option>
+                    <option value="male" <?= (($_POST['gender'] ?? '') === 'male') ? 'selected' : '' ?>>Male</option>
+                    <option value="female" <?= (($_POST['gender'] ?? '') === 'female') ? 'selected' : '' ?>>Female</option>
+                    <option value="other" <?= (($_POST['gender'] ?? '') === 'other') ? 'selected' : '' ?>>Other</option>
+                </select>
             </div>
             <div class="form-group">
                 <label>Group *</label>
                 <select name="group_id" class="form-control" id="group-select" onchange="setFees()" required>
                     <option value="">— Select group —</option>
-                    <?php foreach ($groups as $g): ?>
+                    <?php foreach ($groups as $g):
+                        $groupLabel = $g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : '');
+                    ?>
                         <option value="<?= $g['group_id'] ?>"
                                 data-fees="<?= $g['total_fees'] ?>"
                                 <?= (($_POST['group_id'] ?? '') == $g['group_id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($g['name']) ?>
+                            <?= htmlspecialchars($groupLabel) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

@@ -97,21 +97,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // -- Add new admin account (superadmin only) --
-
-    // Admin registration is handled by auth/register.php
-
-    // -- Toggle admin account active status --
-    if ($action === 'toggle_admin' && isSuperAdmin()) {
-        $aid = intval($_POST['aid'] ?? 0);
-        if ($aid !== $admin['admin_id']) {  // can't suspend yourself
-            $db->prepare("UPDATE admin_users SET is_active = NOT is_active WHERE admin_id=?")
-               ->execute([$aid]);
-            setFlash('success', 'Admin account status toggled.');
-        }
-        header('Location: ' . APP_ROOT . '/admin/settings.php#admins');
-        exit;
-    }
 }
 
 // ============================================================
@@ -131,16 +116,13 @@ $settings = $db->query("SELECT setting_key, setting_value FROM settings")
 // Fetch all tiers
 $tiers = $db->query("SELECT * FROM tiers ORDER BY tier_id")->fetchAll();
 
-// Fetch all admin users
-$admins = $db->query("SELECT * FROM admin_users ORDER BY role DESC, full_name")->fetchAll();
-
 include __DIR__ . '/partials/header.php';
 ?>
 
 <div class="page-header">
     <div>
         <h1 class="page-title">Settings</h1>
-        <p class="page-subtitle">System configuration, fine rates, tier rules, and admin accounts</p>
+        <p class="page-subtitle">System configuration, fine rates and tier rules</p>
     </div>
 </div>
 
@@ -148,7 +130,6 @@ include __DIR__ . '/partials/header.php';
 <div class="settings-tabs">
     <button class="stab active" onclick="switchSettingsTab('general', this)" data-tab="general">⚙️ General</button>
     <button class="stab" onclick="switchSettingsTab('tiers', this)" data-tab="tiers">🔐 Tier Rules</button>
-    <button class="stab" onclick="switchSettingsTab('admins', this)" data-tab="admins">👤 Admin Accounts</button>
     <button class="stab" onclick="switchSettingsTab('password', this)" data-tab="password">🔑 Change Password</button>
 </div>
 
@@ -327,65 +308,6 @@ include __DIR__ . '/partials/header.php';
 </div>
 
 <!-- ============================================================
-     TAB: ADMIN ACCOUNTS
-============================================================ -->
-<div class="stab-content" id="content-admins">
-    <!-- Current admin accounts table -->
-    <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2 class="card-title">👤 Admin Accounts</h2></div>
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Last Login</th><th>Status</th><th>Action</th></tr></thead>
-                <tbody>
-                    <?php foreach ($admins as $a): ?>
-                        <tr>
-                            <td><strong><?= htmlspecialchars($a['full_name']) ?></strong></td>
-                            <td class="mono"><?= htmlspecialchars($a['username']) ?></td>
-                            <td><?= htmlspecialchars($a['email']) ?></td>
-                            <td><span class="badge badge-<?= $a['role']==='superadmin'?'overdue':'available' ?>"><?= ucfirst($a['role']) ?></span></td>
-                            <td style="font-size:12px"><?= $a['last_login'] ? date('d M Y H:i', strtotime($a['last_login'])) : 'Never' ?></td>
-                            <td><span class="badge badge-<?= $a['is_active']?'available':'maintenance' ?>"><?= $a['is_active']?'Active':'Suspended'?></span></td>
-                            <td>
-                                <?php if (isSuperAdmin() && $a['admin_id'] !== $admin['admin_id']): ?>
-                                    <form method="POST" style="display:inline">
-                                        <input type="hidden" name="action" value="toggle_admin">
-                                        <input type="hidden" name="aid" value="<?= $a['admin_id'] ?>">
-                                        <button type="submit" class="btn btn-<?= $a['is_active']?'warn':'success' ?> btn-sm">
-                                            <?= $a['is_active']?'Suspend':'Activate' ?>
-                                        </button>
-                                    </form>
-                                <?php elseif ($a['admin_id'] === $admin['admin_id']): ?>
-                                    <span style="font-size:12px;color:var(--text-muted)">You</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Register new admin — links to dedicated page -->
-    <?php if (isSuperAdmin()): ?>
-        <div class="card">
-            <div style="padding:24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
-                <div>
-                    <div style="font-weight:700;font-size:15px;color:var(--text-primary);margin-bottom:4px">
-                        Register a New Admin Account
-                    </div>
-                    <div style="font-size:13px;color:var(--text-muted)">
-                        Add authorised KIMC staff who need access to the inventory system.
-                    </div>
-                </div>
-                <a href="<?= APP_ROOT ?>/auth/register.php" class="btn btn-primary" style="white-space:nowrap;flex-shrink:0">
-                    + Register New Admin
-                </a>
-            </div>
-        </div>
-    <?php endif; ?>
-</div>
-
-<!-- ============================================================
      TAB: CHANGE PASSWORD
 ============================================================ -->
 <div class="stab-content" id="content-password">
@@ -443,7 +365,7 @@ function switchSettingsTab(name, btn) {
 // Auto-open from hash (script is at page bottom so DOM is already ready)
 (function() {
     const hash = window.location.hash.replace('#', '');
-    const validTabs = ['general', 'tiers', 'admins', 'password'];
+    const validTabs = ['general', 'tiers', 'password'];
     const target = validTabs.includes(hash) ? hash : 'general';
     const contentEl = document.getElementById('content-' + target);
     const btnEl = document.querySelector('[data-tab="' + target + '"]');

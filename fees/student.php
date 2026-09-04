@@ -6,7 +6,18 @@ ini_set('display_errors', 0); error_reporting(0);
 
 $db = getDB();
 $id = intval($_GET['id'] ?? 0);
-if (!$id) { header('Location: ' . APP_ROOT . '/fees/students.php'); exit; }
+$groupFilter  = intval($_GET['group'] ?? 0);
+$statusFilter = $_GET['status'] ?? '';
+$search       = trim($_GET['q'] ?? '');
+
+$backQuery = http_build_query([
+    'group' => $groupFilter ?: null,
+    'status' => $statusFilter ?: null,
+    'q' => $search ?: null,
+]);
+$backUrl = APP_ROOT . '/fees/students.php' . ($backQuery ? '?' . $backQuery : '');
+
+if (!$id) { header('Location: ' . $backUrl); exit; }
 
 // ── DELETE payment ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_payment'])) {
@@ -18,18 +29,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_payment'])) {
 }
 
 $student = $db->prepare("
-    SELECT s.*, g.name AS group_name, g.total_fees AS group_fees
+    SELECT s.*, CONCAT(g.name, IF(g.academic_year <> '', CONCAT(' (', g.academic_year, ')'), '')) AS group_name, g.total_fees AS group_fees
     FROM fee_students s JOIN fee_groups g ON g.group_id=s.group_id
     WHERE s.fee_student_id=?
 ");
 $student->execute([$id]);
 $student = $student->fetch();
-if (!$student) { header('Location: ' . APP_ROOT . '/fees/students.php'); exit; }
+if (!$student) { header('Location: ' . $backUrl); exit; }
 
 $payments = $db->prepare("
-    SELECT p.*, a.full_name AS posted_by_name
+    SELECT p.*, COALESCE(a.full_name, 'System Import') AS posted_by_name
     FROM fee_payments p
-    JOIN admin_users a ON a.admin_id=p.posted_by
+    LEFT JOIN admin_users a ON a.admin_id=p.posted_by
     WHERE p.fee_student_id=?
     ORDER BY p.date_paid ASC, p.created_at ASC
 ");
@@ -84,7 +95,7 @@ include __DIR__ . '/partials/header.php';
 
 <!-- Breadcrumb -->
 <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
-    <a href="<?= APP_ROOT ?>/fees/students.php" style="color:var(--text-muted)">Students</a> › <?= htmlspecialchars($student['full_name']) ?>
+    <a href="<?= htmlspecialchars($backUrl) ?>" style="color:var(--text-muted)">Students</a> › <?= htmlspecialchars($student['full_name']) ?>
 </div>
 
 <!-- Student header card -->

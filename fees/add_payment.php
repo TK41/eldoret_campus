@@ -43,7 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Load all students for dropdown
 $allStudents = $db->query("
-    SELECT s.fee_student_id, s.full_name, s.student_id, s.total_fees, g.name AS group_name,
+    SELECT s.fee_student_id, s.full_name, s.student_id, s.total_fees,
+           CONCAT(g.name, IF(g.academic_year <> '', CONCAT(' (', g.academic_year, ')'), '')) AS group_name,
            COALESCE((SELECT SUM(p.amount) FROM fee_payments p WHERE p.fee_student_id=s.fee_student_id),0) AS paid
     FROM fee_students s
     JOIN fee_groups g ON g.group_id=s.group_id

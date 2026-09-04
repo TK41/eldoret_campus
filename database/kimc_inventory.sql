@@ -68,10 +68,12 @@ CREATE TABLE IF NOT EXISTS users (
   phone         VARCHAR(20),
   department    VARCHAR(100),
   tier_id       TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  fee_student_id INT UNSIGNED DEFAULT NULL,
   fines_owed    DECIMAL(8,2) NOT NULL DEFAULT 0.00,
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_student_id (student_id),
+  INDEX idx_fee_student_id (fee_student_id),
   INDEX idx_tier (tier_id),
   FOREIGN KEY (tier_id) REFERENCES tiers(tier_id)
 );

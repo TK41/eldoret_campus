@@ -109,3 +109,61 @@
 html {
     transition: background-color .25s ease, color .25s ease;
 }
+
+/* Login page mobile centering overrides */
+@media (max-width: 560px) {
+    .login-page {
+        margin: 0 auto !important;
+        left: 0; right: 0;
+        display: block !important;
+        width: 100%;
+        padding: 20px 16px !important;
+    }
+    .login-panel {
+        margin: 0 auto !important;
+        max-width: 420px;
+        width: 100%;
+    }
+    .login-hero { padding: 16px 12px 20px !important; }
+    .brand{justify-content:center !important; margin-left:0 !important}
+}
+
+/* Stronger selector for the KIMC login page to override inline/right alignment */
+@media (max-width: 720px) {
+    body.kimc-login .login-page,
+    body.kimc-login .login-panel {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        float: none !important;
+        display: block !important;
+        text-align: center !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 520px !important;
+    }
+    body.kimc-login .login-panel .login-form { text-align: left !important; }
+    body.kimc-login .brand{justify-content:center !important; margin-left:0 !important}
+}
+
+    /* Thin rectangular inputs and compact login button for the login page */
+    body.kimc-login .fg input.thin-input,
+    body.kimc-login .input-with-toggle input.thin-input {
+        padding: 8px 10px;
+        border-radius: 4px;
+        height: 38px;
+        font-size: 0.98rem;
+    }
+    body.kimc-login .input-with-toggle{position:relative}
+    body.kimc-login .input-with-toggle .pwd-toggle{
+        position:absolute;right:6px;top:50%;transform:translateY(-50%);
+        background:transparent;border:none;cursor:pointer;padding:6px;border-radius:4px;font-size:1rem;color:#111827
+    }
+    body.kimc-login .input-with-toggle input{padding-right:44px}
+    body.kimc-login .btn-login{padding:8px 12px;border-radius:4px;min-width:110px}
+
+    /* Ensure login button centers on smaller screens */
+    @media (max-width: 720px){
+        body.kimc-login .login-actions,
+        body.kimc-login .login-actions.login-actions-right{justify-content:center !important}
+    }

@@ -8,17 +8,31 @@
 //   $pageTitle = 'Dashboard';   // set before including
 //   $activePage = 'dashboard';  // matches nav item keys
 //   include __DIR__ . '/partials/header.php';
+require_once __DIR__ . '/../../auth/rbac.php';
+requireAccess('inventory');
+getDB()->prepare("UPDATE admin_users SET last_seen=NOW() WHERE admin_id=?")->execute([$_SESSION['admin_id']]);
 // ============================================================
 
 $admin = getCurrentAdmin();
 $flash = getFlash();  // one-time flash message
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle ?? 'Admin') ?> — KIMC Inventory</title>
+
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('kimc_theme');
+                const theme = savedTheme === 'dark' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+            } catch (e) {}
+        })();
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -69,17 +83,15 @@ $flash = getFlash();  // one-time flash message
 
         <!-- Admin user menu -->
         <div class="user-menu" onclick="toggleUserMenu()">
-            <div class="avatar"><?= strtoupper(substr($admin['full_name'], 0, 1)) ?></div>
-            <div class="user-info">
-                <span class="user-name"><strong><?= htmlspecialchars($admin['full_name']) ?></strong></span>
-                <span class="user-role"><?= ucfirst($admin['role']) ?></span>
-            </div>
+            <?php
+            $parts = preg_split('/\s+/', trim($admin['full_name']));
+            $initials = strtoupper(substr($parts[0] ?? '', 0, 1) . (isset($parts[1]) ? substr($parts[1], 0, 1) : ''));
+            ?>
+            <div class="avatar"><?= htmlspecialchars($initials) ?></div>
             <span class="dropdown-arrow">▾</span>
 
             <div class="dropdown-menu" id="user-dropdown">
-                <a href="<?= APP_ROOT ?>/admin/users.php" class="dropdown-item">👤 My Profile</a>
-                <div class="dropdown-divider"></div>
-                <a href="<?= APP_ROOT ?>/auth/logout.php" class="dropdown-item danger">🚪 Sign Out</a>
+                <a href="<?= APP_ROOT ?>/auth/logout.php" class="dropdown-item danger" style="display:block;text-align:center;padding:12px 20px;">🚪 Sign Out</a>
             </div>
         </div>
     </div>
@@ -147,12 +159,7 @@ $flash = getFlash();  // one-time flash message
 
     </nav>
 
-    <!-- Sidebar footer: logged-in user info -->
-    <div class="sidebar-footer">
-        <div style="font-size:11px; color:var(--text-muted)">Signed in as</div>
-        <div style="font-weight:600; font-size:13px; color:var(--text-primary)"><?= htmlspecialchars($admin['username']) ?></div>
-        <a href="<?= APP_ROOT ?>/auth/logout.php" class="sidebar-logout">Sign Out</a>
-    </div>
+    <!-- Sidebar footer removed (info available in top-right user menu) -->
 </aside>
 
 <!-- Main content wrapper — closed in footer.php -->

@@ -11,19 +11,21 @@ $errors = [];
 
 // Add group
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_group'])) {
-    $name       = trim($_POST['name'] ?? '');
-    $programme  = trim($_POST['programme'] ?? '');
-    $intake     = trim($_POST['intake'] ?? '');
-    $year_label = trim($_POST['year_label'] ?? '');
-    $total_fees = floatval($_POST['total_fees'] ?? 0);
+    $name          = trim($_POST['name'] ?? '');
+    $academic_year = trim($_POST['academic_year'] ?? '');
+    $programme     = trim($_POST['programme'] ?? '');
+    $intake        = trim($_POST['intake'] ?? '');
+    $year_label    = trim($_POST['year_label'] ?? '');
+    $total_fees    = floatval($_POST['total_fees'] ?? 0);
 
-    if (!$name) $errors[] = 'Group name is required.';
+    if (!$name)          $errors[] = 'Group name is required.';
+    if (!$academic_year) $errors[] = 'Academic year is required.';
     if ($total_fees <= 0) $errors[] = 'Total fees must be greater than zero.';
 
     if (empty($errors)) {
-        $db->prepare("INSERT INTO fee_groups (name,programme,intake,year_label,total_fees) VALUES (?,?,?,?,?)")
-           ->execute([$name, $programme, $intake ?: null, $year_label ?: null, $total_fees]);
-        setFlash('success', "Group '$name' created.");
+        $db->prepare("INSERT INTO fee_groups (name, academic_year, programme, intake, year_label, total_fees) VALUES (?,?,?,?,?,?)")
+           ->execute([$name, $academic_year, $programme, $intake ?: null, $year_label ?: null, $total_fees]);
+        setFlash('success', "Group '{$name} ({$academic_year})' created.");
         header('Location: ' . APP_ROOT . '/fees/groups.php'); exit;
     }
 }
@@ -40,13 +42,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_fees'])) {
 }
 
 $groups = $db->query("
-    SELECT g.*, COUNT(s.fee_student_id) AS student_count,
-           COALESCE(SUM(p.amount),0) AS collected,
-           COALESCE(SUM(s.total_fees),0) AS expected
+    SELECT g.*,
+           COALESCE(fs.student_count, 0) AS student_count,
+           COALESCE(fp.collected, 0) AS collected,
+           COALESCE(fs.expected, 0) AS expected
     FROM fee_groups g
-    LEFT JOIN fee_students s ON s.group_id=g.group_id AND s.is_active=1
-    LEFT JOIN fee_payments p ON p.fee_student_id=s.fee_student_id
-    GROUP BY g.group_id ORDER BY g.group_id
+    LEFT JOIN (
+        SELECT group_id,
+               COUNT(*) AS student_count,
+               SUM(total_fees) AS expected
+        FROM fee_students
+        WHERE is_active = 1
+        GROUP BY group_id
+    ) fs ON fs.group_id = g.group_id
+    LEFT JOIN (
+        SELECT s.group_id,
+               SUM(p.amount) AS collected
+        FROM fee_payments p
+        JOIN fee_students s ON s.fee_student_id = p.fee_student_id AND s.is_active = 1
+        GROUP BY s.group_id
+    ) fp ON fp.group_id = g.group_id
+    ORDER BY g.group_id
 ")->fetchAll();
 
 include __DIR__ . '/partials/header.php';
@@ -79,11 +95,12 @@ include __DIR__ . '/partials/header.php';
 <!-- Existing groups -->
 <?php foreach ($groups as $g):
     $pct = $g['expected'] > 0 ? min(100, ($g['collected'] / $g['expected']) * 100) : 0;
+    $groupLabel = $g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : '');
 ?>
 <div class="group-card">
     <div class="group-card-header">
         <div>
-            <div class="group-title"><?= htmlspecialchars($g['name']) ?></div>
+            <div class="group-title"><?= htmlspecialchars($groupLabel) ?></div>
             <div style="margin-top:4px;font-size:12px;color:var(--text-muted)">
                 <span class="group-tag"><?= ucfirst($g['programme']) ?></span>
                 <?php if ($g['intake']): ?> · <?= htmlspecialchars($g['intake']) ?><?php endif; ?>
@@ -123,6 +140,11 @@ include __DIR__ . '/partials/header.php';
                     <label>Group Name *</label>
                     <input type="text" name="name" class="form-control" placeholder="e.g. CERT JAN-INTAKE"
                            value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">
+                </div>
+                <div class="form-group">
+                    <label>Academic Year *</label>
+                    <input type="text" name="academic_year" class="form-control" placeholder="e.g. 2024/2025"
+                           value="<?= htmlspecialchars($_POST['academic_year'] ?? '') ?>">
                 </div>
                 <div class="form-group">
                     <label>Programme *</label>

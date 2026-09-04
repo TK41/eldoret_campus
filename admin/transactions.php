@@ -242,6 +242,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
     $fine_amount  = floatval($_POST['fine_amount'] ?? 0);
     $fine_paid    = isset($_POST['fine_paid']) ? 1 : 0;
 
+    // Kits are equipment loans in this system, so no overdue fines apply on return.
+    $fine_amount = 0;
+    $fine_paid   = 1;
+
     if (empty($kit_group_id)) {
         $errors[] = 'Invalid kit group reference.';
     } else {
@@ -332,6 +336,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
     if (!$txnRow) {
         $errors[] = 'Transaction not found or already returned.';
     } else {
+        if ($txnRow['asset_type'] !== 'book') {
+            // No fines should be charged for equipment returns
+            $fine_amount = 0;
+            $fine_paid   = 1;
+        }
+
         $db->prepare("
             UPDATE transactions
             SET returned_at=NOW(), condition_in=?, condition_note=?, fine_amount=?, fine_paid=?

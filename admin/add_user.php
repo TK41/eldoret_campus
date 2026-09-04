@@ -52,9 +52,15 @@ if ($editId > 0) {
         exit;
     }
     $isEdit    = true;
-    $pageTitle = 'Edit Student: ' . $user['full_name'];
+    $pageTitle = 'Edit User: ' . $user['full_name'];
 } else {
-    $pageTitle = 'Add New Student';
+    $pageTitle = 'Add Staff Member';
+}
+
+if (!$isEdit) {
+    foreach ($departments as $dept => $tierIds) {
+        $departments[$dept] = [4];
+    }
 }
 
 $activePage = 'users';
@@ -164,11 +170,11 @@ include __DIR__ . '/partials/header.php';
 <!-- Page heading -->
 <div class="page-header">
     <div>
-        <h1 class="page-title"><?= $isEdit ? 'Edit Student' : 'Add New Student' ?></h1>
+        <h1 class="page-title"><?= $isEdit ? 'Edit User' : 'Add Staff Member' ?></h1>
         <p class="page-subtitle">
             <?= $isEdit
                 ? 'Update details for ' . htmlspecialchars($user['full_name'] ?? '')
-                : 'Register a new student or staff member as a borrower' ?>
+                : 'Add a new staff member to the inventory.' ?>
         </p>
     </div>
     <a href="<?= APP_ROOT ?>/admin/users.php" class="btn btn-ghost">← Back to Users</a>
@@ -448,7 +454,7 @@ include __DIR__ . '/partials/header.php';
     <!-- Submit buttons -->
     <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-lg">
-            <?= $isEdit ? '✓ Save Changes' : '✓ Add Student' ?>
+            <?= $isEdit ? '✓ Save Changes' : '✓ Add Staff Member' ?>
         </button>
         <?php if (!$isEdit): ?>
             <button type="reset" class="btn btn-ghost btn-lg">Reset Form</button>
