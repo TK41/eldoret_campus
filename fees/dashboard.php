@@ -96,32 +96,26 @@ include __DIR__ . '/partials/header.php';
 .accent-gold {border-left:4px solid #d97706}
 .accent-green{border-left:4px solid #16a34a}
 .accent-red  {border-left:4px solid #dc2626}
-.accent-blue {border-left:4px solid #1a3a6b}
-.accent-purple{border-left:4px solid #7c3aed}
+.accent-blue,.accent-gold {border-left:0}
 
 .group-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:28px}
 .group-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}
 .group-name{font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:4px}
 .group-meta{font-size:12px;color:var(--text-muted);margin-bottom:14px}
 .progress-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:8px}
-.progress-fill{height:100%;background:linear-gradient(90deg,#d97706,#f59e0b);border-radius:4px}
-.progress-fill.full{background:linear-gradient(90deg,#16a34a,#22c55e)}
-.progress-fill.over{background:linear-gradient(90deg,#7c3aed,#a855f7)}
+.progress-fill{height:100%;background:var(--color-warning);border-radius:4px}
+.progress-fill.full{background:var(--color-success)}
+.progress-fill.over{background:var(--color-warning)}
 .group-amounts{display:flex;justify-content:space-between;font-size:12px}
 
 .mode-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;text-transform:uppercase}
-.mode-mpesa{background:rgba(22,163,74,.1);color:#16a34a}
-.mode-helb{background:rgba(26,58,107,.1);color:#1a3a6b}
-.mode-bank{background:rgba(107,114,128,.1);color:#6b7280}
-.mode-ecitizen{background:rgba(217,119,6,.1);color:#d97706}
-.mode-smis{background:rgba(139,92,246,.1);color:#7c3aed}
-.mode-receipted{background:rgba(139,92,246,.1);color:#7c3aed}
-.mode-nairobi-campus{background:rgba(6,182,212,.1);color:#0891b2}
-.mode-other{background:rgba(107,114,128,.1);color:#6b7280}
+.mode-mpesa,.mode-helb,.mode-bank,.mode-ecitizen,.mode-smis,.mode-receipted,.mode-nairobi-campus,.mode-other{
+    background:var(--table-head-bg);color:var(--text-primary);border:1px solid var(--border)
+}
 
-.overpay-card{background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.2);border-radius:12px;padding:20px;margin-bottom:28px}
-.overpay-title{font-size:15px;font-weight:700;color:#7c3aed;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.excess-amount{font-family:'Space Mono',monospace;font-weight:700;color:#7c3aed}
+.overpay-card{background:var(--color-warning-bg);border:1px solid var(--color-warning);border-radius:12px;padding:20px;margin-bottom:28px}
+.overpay-title{font-size:15px;font-weight:700;color:var(--color-warning);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.excess-amount{font-family:'Space Mono',monospace;font-weight:700;color:var(--color-warning)}
 </style>
 
 <div class="page-header">
@@ -208,7 +202,7 @@ include __DIR__ . '/partials/header.php';
                         KES <?= number_format($op['total_fees']) ?>
                     </td>
 
-                    <td style="font-family:'Space Mono',monospace;font-size:12px;color:#16a34a">
+                    <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--color-success)">
                         KES <?= number_format($op['paid']) ?>
                     </td>
 
@@ -225,8 +219,7 @@ include __DIR__ . '/partials/header.php';
                         </a>
 
                         <a href="<?= APP_ROOT ?>/fees/overpayment.php?id=<?= $op['fee_student_id'] ?>"
-                           class="btn btn-sm"
-                           style="background:rgba(124,58,237,.1);color:#7c3aed;border:1px solid rgba(124,58,237,.3);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;text-decoration:none">
+                           class="btn btn-ghost btn-sm">
                             Resolve
                         </a>
                     </td>
@@ -255,8 +248,8 @@ include __DIR__ . '/partials/header.php';
             <div class="progress-fill <?= $over ? 'over' : ($pct>=100?'full':'') ?>" style="width:<?= min(100,$pct) ?>%"></div>
         </div>
         <div class="group-amounts">
-            <span style="color:#16a34a;font-weight:600">KES <?= number_format($g['collected']) ?> paid</span>
-            <span style="color:<?= $over ? '#7c3aed' : '#dc2626' ?>">
+            <span style="color:var(--color-success);font-weight:600">KES <?= number_format($g['collected']) ?> paid</span>
+            <span style="color:<?= $over ? 'var(--color-warning)' : 'var(--color-danger-text)' ?>">
                 <?= $over ? 'KES '.number_format($g['collected']-$g['expected']).' excess' : 'KES '.number_format(max(0,$g['expected']-$g['collected'])).' owed' ?>
             </span>
         </div>

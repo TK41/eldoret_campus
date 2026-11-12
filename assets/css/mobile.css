@@ -9,37 +9,18 @@
 
 
 /* ============================================================
-   1. TOPBAR — slim, no brand text, no logo, no theme toggle
+   1. TOPBAR — compact while preserving the shared module identity
 ============================================================ */
 @media (max-width: 768px) {
-
-    /* Remove brand name, sub-label and logo entirely */
-    .topbar-brand img,
-    .topbar-brand .brand-text,
-    .brand-name,
-    .brand-sub { display: none !important; }
-
-    /* Hide theme toggle button */
-    .theme-toggle-btn,
-    .icon-btn[onclick*="toggleTheme"],
-    .icon-btn[title*="theme"],
-    .icon-btn[title*="Theme"] { display: none !important; }
-
-    /* Shrink topbar height */
-    .topbar {
-        height: 50px;
-        padding: 0 10px;
-    }
-
-    /* Push layout offset to match new topbar height */
-    .layout { padding-top: 50px; }
-    .sidebar { top: 50px; }
+    .topbar { min-height: 58px; height: auto; }
+    .layout { padding-top: 58px; }
+    .sidebar { top: 58px; }
 
     /* User menu — show avatar only, hide name & role */
     .user-menu .user-info,
     .user-name,
     .user-role,
-    .dropdown-arrow { display: none !important; }
+    .dropdown-arrow {     display: none !important; }
 
     .user-menu {
         padding: 4px 8px;
@@ -52,7 +33,6 @@
         font-size: 14px;
     }
 
-    /* Keep the portal home icon button visible */
     .icon-btn { padding: 6px 8px; font-size: 15px; }
 
     /* Hamburger always visible */
@@ -64,9 +44,9 @@
         height: 36px;
         font-size: 20px;
         border-radius: 8px;
-        background: rgba(255,255,255,.08);
-        border: 1px solid rgba(255,255,255,.12);
-        color: #fff;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
         cursor: pointer;
     }
 }

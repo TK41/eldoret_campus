@@ -1,0 +1,197 @@
+body[data-module="inventory"] { --module-accent: #1e3a8a; }
+body[data-module="fees"] { --module-accent: #a64b00; }
+body[data-module="admissions"] { --module-accent: #4338ca; }
+body[data-module="exams"] { --module-accent: #047857; }
+
+[data-theme="dark"] body[data-module="inventory"] { --module-accent: #93c5fd; }
+[data-theme="dark"] body[data-module="fees"] { --module-accent: #fbbf24; }
+[data-theme="dark"] body[data-module="admissions"] { --module-accent: #a5b4fc; }
+[data-theme="dark"] body[data-module="exams"] { --module-accent: #6ee7b7; }
+
+.topbar {
+    background: var(--topbar-bg);
+    border-bottom-color: var(--border);
+}
+
+.topbar-brand .brand-name { color: var(--text-primary); }
+.topbar-brand .brand-sub { color: var(--module-accent); font-weight: 600; }
+
+.sidebar {
+    background: var(--sidebar-bg);
+    border-right-color: var(--border);
+}
+
+.nav-section-label { color: var(--text-muted); }
+.nav-item { color: var(--nav-text); }
+.nav-item:hover { background: var(--nav-hover-bg); color: var(--text-primary); }
+.nav-item.active {
+    background: color-mix(in srgb, var(--module-accent) 10%, var(--surface));
+    color: var(--module-accent);
+    border-left-color: var(--module-accent);
+    font-weight: 700;
+}
+
+.main-content {
+    width: min(calc(100% - 230px), 1400px);
+    max-width: 1400px;
+    margin-left: max(230px, calc((100% - 1170px) / 2));
+    margin-right: auto;
+}
+
+.app-footer {
+    width: min(calc(100% - 230px), 1400px);
+    max-width: 1400px;
+    margin-left: max(230px, calc((100% - 1170px) / 2));
+    margin-right: auto;
+}
+
+.btn-primary {
+    background: var(--module-accent);
+    border-color: var(--module-accent);
+    color: var(--module-accent-contrast, #fff);
+}
+.btn-primary:hover { filter: brightness(.92); }
+[data-theme="dark"] .btn-primary { --module-accent-contrast: #172033; }
+
+.page-title-icon { color: var(--module-accent); }
+
+.stat-card.accent-blue::before { background: var(--color-info); }
+.stat-card.accent-green::before { background: var(--color-success); }
+.stat-card.accent-red::before { background: var(--color-danger-text); }
+.stat-card.accent-orange::before { background: var(--color-warning); }
+.stats-grid > .stat-card.accent-blue:first-child::before { background: var(--border); }
+
+.badge-equipment,
+.badge-book,
+.badge-kit {
+    background: var(--table-head-bg);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+.badge-checked_out,
+.badge-active,
+.badge-condition-good {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+    border-color: var(--color-info);
+}
+.badge-reserved,
+.badge-maintenance,
+.badge-due_soon,
+.badge-condition-fair {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-color: var(--color-warning);
+}
+.badge-available,
+.badge-returned,
+.badge-condition-excellent {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border-color: var(--color-success);
+}
+.badge-overdue,
+.badge-missing,
+.badge-condition-damaged,
+.badge-condition-missing {
+    background: var(--color-danger-bg);
+    color: var(--color-danger-text);
+    border-color: var(--color-danger-text);
+}
+.badge-retired {
+    background: var(--table-head-bg);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.module-switcher { position: relative; }
+.module-switcher-trigger {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+.module-switcher-trigger::-webkit-details-marker { display: none; }
+.module-switcher[open] .module-switcher-trigger,
+.module-switcher-trigger:hover { background: var(--surface-hover); }
+.module-switcher-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 210;
+    min-width: 190px;
+    padding: 6px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+.module-switcher-menu .dropdown-item { white-space: nowrap; }
+.module-switcher-menu .current-module { color: var(--text-primary); font-weight: 700; }
+
+.user-menu { padding: 0; border: 0; background: transparent; }
+.user-menu:hover { background: transparent; }
+.user-menu-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.user-menu-trigger:hover { background: var(--surface-hover); }
+.user-menu .avatar { background: var(--avatar-bg); color: var(--avatar-text); }
+.user-menu-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+}
+.user-menu-identity .identity-label { color: var(--text-muted); font-size: 12px; }
+.dropdown-item.danger { color: var(--color-danger-text); }
+
+@media (min-width: 769px) {
+    body.sidebar-collapsed .main-content,
+    body.sidebar-collapsed .app-footer {
+        width: min(100%, 1400px);
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .topbar { padding: 0 10px; }
+    .topbar-brand { gap: 8px; }
+    .topbar-brand img { height: 32px; width: auto; }
+    .topbar-brand .brand-text { display: flex; }
+    .brand-name { font-size: 12px; }
+    .brand-sub { font-size: 10px; }
+    .topbar-right { gap: 6px; }
+    .module-switcher-trigger { padding: 6px 8px; }
+    .main-content,
+    .app-footer {
+        width: 100%;
+        max-width: 100%;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 360px) {
+    .brand-name { display: none; }
+    .brand-sub { font-size: 9px; }
+    .topbar-left { gap: 4px; }
+    .topbar-right { gap: 3px; }
+    .module-switcher-trigger { padding: 6px; font-size: 12px; }
+}
