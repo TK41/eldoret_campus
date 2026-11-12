@@ -130,3 +130,33 @@ Each file is clearly separated and self-contained:
 
 **PHP errors showing**  
 → XAMPP requires PHP 7.4+ (PHP 8+ recommended). Check XAMPP control panel for PHP version.
+
+---
+
+## 🎒 Student equipment bookings
+
+The student booking page is available at `http://localhost/eldoret_campus/booking/reservations.php`.
+Students are validated against the existing active inventory `users` register and borrowing tier.
+Requests remain pending until authorized inventory staff approve them; a pending request does
+not reserve stock. Staff must verify the student's identity before approval and physical handover.
+The portal issues a one-time access code with the booking reference so the student can view or
+cancel a pending request without receiving access to other student records.
+
+Staff manage requests from **Inventory → Reservations**. Approval rechecks the requested period,
+including all kit components and active checkouts. Physical handover creates the existing
+component-level `transactions` records with a reservation link. Staff use the existing Transactions
+check-in workflow; kit components can be returned individually or as a complete remaining kit.
+Staff can mark a component missing with a required note; it remains an open transaction and the kit
+is marked incomplete until that component is returned or otherwise reconciled.
+
+### Database setup for bookings
+
+- **New installation:** import the updated `database/kimc_inventory.sql`.
+- **Existing installation:** back up the database, then run `database/reservations_schema.sql`
+  once in phpMyAdmin against `kimc_inventory`. The migration adds tables and transaction links;
+  it does not delete or rewrite existing borrowing history. Keep the backup as the recovery path.
+
+Only individually tracked equipment assets are reservable; quantity-managed stock is not present
+in the current inventory model. Student login accounts, automated email/SMS delivery, and
+institution-specific identity verification are not configured by this change. Staff identity
+verification remains mandatory before approval and issue.

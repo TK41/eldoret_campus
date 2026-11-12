@@ -42,7 +42,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Generate overdue alerts for all current overdue transactions
     if ($action === 'generate_overdue') {
-        $overdue = $db->query("
+        $targetUserId = null;
+        if (array_key_exists('user_id', $_POST)) {
+            verifyCsrf();
+            $userIdValue = $_POST['user_id'];
+            $targetUserId = is_scalar($userIdValue)
+                ? filter_var((string) $userIdValue, FILTER_VALIDATE_INT)
+                : false;
+            if ($targetUserId === false || $targetUserId <= 0) {
+                setFlash('error', 'A valid borrower is required to queue a reminder.');
+                header('Location: ' . APP_ROOT . '/admin/notifications.php');
+                exit;
+            }
+        }
+
+        $overdueQuery = $db->prepare("
             SELECT t.txn_id, t.user_id, t.due_at,
                    a.name AS asset_name, a.asset_type,
                    u.email
@@ -51,7 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             JOIN users  u ON t.user_id  = u.user_id
             WHERE t.returned_at IS NULL
               AND t.due_at < NOW()
-        ")->fetchAll();
+              AND COALESCE(t.condition_in, '') != 'missing'
+              " . ($targetUserId !== null ? 'AND t.user_id = ?' : '') . "
+        ");
+        $overdueQuery->execute($targetUserId !== null ? [$targetUserId] : []);
+        $overdue = $overdueQuery->fetchAll();
 
         $count = 0;
         foreach ($overdue as $o) {
@@ -73,7 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $count++;
             }
         }
-        setFlash('success', "$count overdue notification(s) generated.");
+        setFlash('success', $targetUserId !== null
+            ? "$count overdue reminder(s) queued."
+            : "$count overdue notification(s) generated.");
     }
 
     header('Location: ' . APP_ROOT . '/admin/notifications.php');
@@ -131,7 +151,7 @@ include __DIR__ . '/partials/header.php';
             <form method="POST" style="display:inline">
                 <input type="hidden" name="action" value="generate_overdue">
                 <button type="submit" class="btn btn-danger">
-                    ⚠ Generate <?= $unnotifiedOverdue ?> Overdue Alert(s)
+                    <?= appIcon('alert-triangle') ?> Generate <?= $unnotifiedOverdue ?> Overdue Alert(s)
                 </button>
             </form>
         <?php endif; ?>
@@ -167,13 +187,13 @@ include __DIR__ . '/partials/header.php';
 ============================================================ -->
 <div class="card" style="margin-bottom:20px">
     <div class="card-header">
-        <h2 class="card-title">📤 Pending Queue</h2>
+        <h2 class="card-title"><?= appIcon('send') ?> Pending Queue</h2>
         <span class="badge badge-orange"><?= count($pending) ?> pending</span>
     </div>
 
     <?php if (empty($pending)): ?>
         <div class="empty-row" style="padding:32px;text-align:center;color:var(--text-muted)">
-            ✅ No pending notifications. All clear!
+            <?= appIcon('check') ?> No pending notifications. All clear!
         </div>
     <?php else: ?>
         <div class="table-wrap">
@@ -193,10 +213,10 @@ include __DIR__ . '/partials/header.php';
                                 </span>
                             </td>
                             <td>
-                                <strong><?= htmlspecialchars($n['full_name']) ?></strong><br>
+                                <strong><?= htmlspecialchars(formatPersonName($n['full_name'])) ?></strong><br>
                                 <small style="color:var(--text-muted)"><?= htmlspecialchars($n['email']) ?></small>
                                 <?php if ($n['phone']): ?>
-                                    <br><small style="color:var(--text-muted)">📱 <?= htmlspecialchars($n['phone']) ?></small>
+                                    <br><small style="color:var(--text-muted)"><?= appIcon('phone') ?> <?= htmlspecialchars($n['phone']) ?></small>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -214,7 +234,7 @@ include __DIR__ . '/partials/header.php';
                                 </span>
                             </td>
                             <td class="mono" style="font-size:11px">
-                                <?= date('d M Y H:i', strtotime($n['scheduled_at'])) ?>
+                                <?= formatDate($n['scheduled_at'], true) ?>
                                 <?php if (strtotime($n['scheduled_at']) <= time()): ?>
                                     <br><span style="color:#dc2626;font-size:10px">Overdue to send</span>
                                 <?php endif; ?>
@@ -225,14 +245,14 @@ include __DIR__ . '/partials/header.php';
                                     <form method="POST" style="display:inline">
                                         <input type="hidden" name="action"   value="mark_sent">
                                         <input type="hidden" name="notif_id" value="<?= $n['notif_id'] ?>">
-                                        <button type="submit" class="btn btn-success btn-sm">✓ Mark Sent</button>
+                                        <button type="submit" class="btn btn-success btn-sm"><?= appIcon('check') ?> Mark Sent</button>
                                     </form>
                                     <!-- Delete -->
                                     <form method="POST" style="display:inline">
                                         <input type="hidden" name="action"   value="delete">
                                         <input type="hidden" name="notif_id" value="<?= $n['notif_id'] ?>">
                                         <button type="submit" class="btn btn-danger btn-sm"
-                                                onclick="return confirm('Remove this notification?')">✕</button>
+                                                onclick="return confirm('Remove this notification?')" aria-label="Remove notification"><?= appIcon('x') ?></button>
                                     </form>
                                 </div>
                             </td>
@@ -249,7 +269,7 @@ include __DIR__ . '/partials/header.php';
 ============================================================ -->
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">📋 Recent History</h2>
+        <h2 class="card-title"><?= appIcon('clipboard') ?> Recent History</h2>
         <span style="font-size:12px;color:var(--text-muted)">Last 50 records</span>
     </div>
     <div class="table-wrap">
@@ -267,11 +287,11 @@ include __DIR__ . '/partials/header.php';
                     <?php foreach ($history as $h): ?>
                         <tr>
                             <td><span class="badge badge-<?= $h['type']==='overdue'?'overdue':'due_soon' ?>"><?= ucfirst(str_replace('_',' ',$h['type'])) ?></span></td>
-                            <td><?= htmlspecialchars($h['full_name']) ?><br><small style="color:var(--text-muted)"><?= htmlspecialchars($h['email']) ?></small></td>
+                            <td><?= htmlspecialchars(formatPersonName($h['full_name'])) ?><br><small style="color:var(--text-muted)"><?= htmlspecialchars($h['email']) ?></small></td>
                             <td style="font-size:12px"><?= htmlspecialchars($h['asset_name'] ?? '—') ?></td>
                             <td style="font-size:12px;max-width:220px"><?= htmlspecialchars($h['subject']) ?></td>
                             <td class="mono" style="font-size:10px"><?= strtoupper($h['channel']) ?></td>
-                            <td class="mono" style="font-size:11px"><?= $h['sent_at'] ? date('d M Y H:i', strtotime($h['sent_at'])) : '—' ?></td>
+                            <td class="mono date-value" style="font-size:11px"><?= formatDate($h['sent_at'], true) ?></td>
                             <td>
                                 <span class="badge <?= $h['status']==='sent' ? 'badge-available' : 'badge-overdue' ?>">
                                     <?= ucfirst($h['status']) ?>

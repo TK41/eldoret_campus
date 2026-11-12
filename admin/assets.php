@@ -25,12 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'retire_kit' && isSuperAdmin()) {
-        // Retire every component of a kit at once
-        $db->prepare("UPDATE assets SET status='retired' WHERE kit_id=?")
-           ->execute([intval($_POST['kit_id'])]);
+        // Retire every component of a kit at once, without treating kit_id as ownership.
+        $kitId = intval($_POST['kit_id']);
+        $db->prepare("UPDATE assets SET status='retired' WHERE asset_id IN (SELECT asset_id FROM kit_components WHERE kit_id = ?)")
+           ->execute([$kitId]);
         $db->prepare("UPDATE kits SET status='retired' WHERE kit_id=?")
-           ->execute([intval($_POST['kit_id'])]);
-        setFlash('success', 'Kit and all components retired.');
+           ->execute([$kitId]);
+        setFlash('success', 'Kit and all linked components retired.');
     }
 
     if ($_POST['action'] === 'delete' && isSuperAdmin()) {
@@ -60,22 +61,30 @@ $filter_type   = $_GET['type']        ?? '';
 $filter_status = $_GET['status']      ?? '';
 $filter_kit    = $_GET['kit']         ?? '';   // 'yes','no','' = all
 
+$componentsTableExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'inventory_components'")->fetchColumn();
+
 $where  = ["a.status != 'retired'"];
 $params = [];
 
 if ($search) {
-    $where[]  = "(a.name LIKE ? OR a.asset_code LIKE ? OR a.barcode LIKE ? OR a.author LIKE ?)";
-    $like     = "%$search%";
-    $params   = array_merge($params, [$like, $like, $like, $like]);
+    if ($componentsTableExists) {
+        $where[]  = "(a.name LIKE ? OR a.asset_code LIKE ? OR a.barcode LIKE ? OR a.author LIKE ? OR EXISTS (SELECT 1 FROM inventory_components ic WHERE ic.inventory_id = a.asset_id AND (ic.component_code LIKE ? OR ic.component_name LIKE ?)))";
+        $like     = "%$search%";
+        $params   = array_merge($params, [$like, $like, $like, $like, $like, $like]);
+    } else {
+        $where[]  = "(a.name LIKE ? OR a.asset_code LIKE ? OR a.barcode LIKE ? OR a.author LIKE ?)";
+        $like     = "%$search%";
+        $params   = array_merge($params, [$like, $like, $like, $like]);
+    }
 }
 if ($filter_type && in_array($filter_type, ['equipment','book'])) {
     $where[] = "a.asset_type = ?"; $params[] = $filter_type;
 }
-if ($filter_status && in_array($filter_status, ['available','checked_out','maintenance'])) {
+if ($filter_status && in_array($filter_status, ['available','checked_out','maintenance','missing'])) {
     $where[] = "a.status = ?"; $params[] = $filter_status;
 }
-if ($filter_kit === 'yes') { $where[] = "a.kit_id IS NOT NULL"; }
-if ($filter_kit === 'no')  { $where[] = "a.kit_id IS NULL"; }
+if ($filter_kit === 'yes') { $where[] = "EXISTS (SELECT 1 FROM kit_components kc WHERE kc.asset_id = a.asset_id)"; }
+if ($filter_kit === 'no')  { $where[] = "NOT EXISTS (SELECT 1 FROM kit_components kc WHERE kc.asset_id = a.asset_id)"; }
 
 $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
@@ -103,7 +112,9 @@ $assets = $assets->fetchAll();
 $isFiltered     = $search || $filter_type || $filter_status;
 $standaloneAssets = $assets; // every asset participates in grouping
 
-// always collapse duplicates by base code and track available quantity
+// Keep the item registry grouped as one listing per item type.
+// This preserves the existing inventory copy-count logic while keeping searches
+// and filtered views readable as a single item row per product.
 $groupedStandalone = [];
 foreach ($standaloneAssets as $a) {
     $base = preg_replace('/-\d+$/','', $a['asset_code']);
@@ -142,28 +153,30 @@ include __DIR__ . '/partials/header.php';
             <?php endif; ?>
         </p>
     </div>
-    <a href="<?= APP_ROOT ?>/admin/add_asset.php" class="btn btn-primary">+ Add New Item</a>
+    <a href="<?= APP_ROOT ?>/admin/add_asset.php" class="btn btn-primary"><?= appIcon('plus') ?> Add New Item</a>
 </div>
 
 <!-- Search + Filter bar -->
 <div class="filter-bar card" style="margin-bottom:20px">
-    <form method="GET" class="filter-form">
+    <form method="GET" class="filter-form" id="asset-search-form">
         <div class="search-input-wrap">
-            <span class="search-icon">🔍</span>
+            <span class="search-icon"><?= appIcon('search') ?></span>
             <input type="text" name="search" class="form-control search-input"
                    placeholder="Search name, code, barcode, author..."
-                   value="<?= htmlspecialchars($search) ?>">
+                   value="<?= htmlspecialchars($search) ?>"
+                   id="asset-search-input">
         </div>
-        <select name="type" class="form-control filter-select">
+        <select name="type" class="form-control filter-select" id="asset-type-filter">
             <option value="">All Types</option>
             <option value="equipment" <?= $filter_type==='equipment'?'selected':''?>>Equipment</option>
             <option value="book"      <?= $filter_type==='book'     ?'selected':''?>>Books</option>
         </select>
-        <select name="status" class="form-control filter-select">
+        <select name="status" class="form-control filter-select" id="asset-status-filter">
             <option value="">All Statuses</option>
             <option value="available"   <?= $filter_status==='available'  ?'selected':''?>>Available</option>
             <option value="checked_out" <?= $filter_status==='checked_out'?'selected':''?>>Checked Out</option>
             <option value="maintenance" <?= $filter_status==='maintenance'?'selected':''?>>Maintenance</option>
+            <option value="missing"     <?= $filter_status==='missing'    ?'selected':''?>>Missing</option>
         </select>
         <button type="submit" class="btn btn-primary">Filter</button>
         <a href="<?= APP_ROOT ?>/admin/assets.php" class="btn btn-ghost">Clear</a>
@@ -198,7 +211,7 @@ include __DIR__ . '/partials/header.php';
                     <td colspan="9" class="empty-row">
                         <?php if ($groupCount === 0): ?>
                             No assets found.
-                            <a href="<?= APP_ROOT ?>/admin/add_asset.php">Add one →</a>
+                            <a href="<?= APP_ROOT ?>/admin/add_asset.php">Add one <?= appIcon('arrow-right') ?></a>
                         <?php else: ?>
                             No available assets match the current filter.
                         <?php endif; ?>
@@ -209,7 +222,7 @@ include __DIR__ . '/partials/header.php';
                 <?php foreach ($groupedStandalone as $base => $info): ?>
                     <?php if ($info['avail'] === 0) continue; ?>
                     <?php $a = $info['rep']; ?>
-                    <tr>
+                    <tr data-search="<?= htmlspecialchars(strtolower($a['name'].' '.$a['asset_code'].' '.$a['barcode'].' '.$a['author'].' '.$a['manufacturer'].' '.$a['model'])) ?>">
                         <td class="mono"><?= htmlspecialchars($a['asset_code']) ?></td>
                         <td><?= $info['avail'] ?><?= $info['total']>1?"/".$info['total']:'' ?></td>
                         <td>
@@ -225,7 +238,7 @@ include __DIR__ . '/partials/header.php';
                         <td><span class="badge badge-<?= $a['status'] ?>"><?= ucfirst(str_replace('_',' ',$a['status'])) ?></span></td>
                         <td><span class="badge badge-condition-<?= $a['condition_rating'] ?>"><?= ucfirst($a['condition_rating']) ?></span></td>
                         <td><small>Tier <?= $a['min_tier'] ?></small></td>
-                        <td class="mono"><?= $a['purchase_value'] ? number_format($a['purchase_value'],2) : '—' ?></td>
+                        <td class="mono"><?= $a['purchase_value'] ? formatCurrency($a['purchase_value']) : '—' ?></td>
                         <td>
                             <div style="display:flex;gap:6px;flex-wrap:wrap">
                                 <a href="<?= APP_ROOT ?>/admin/add_asset.php?edit=<?= $a['asset_id'] ?>" class="btn btn-ghost btn-sm">Edit</a>
@@ -234,14 +247,14 @@ include __DIR__ . '/partials/header.php';
                                         <input type="hidden" name="action" value="update_status">
                                         <input type="hidden" name="asset_id" value="<?= $a['asset_id'] ?>">
                                         <input type="hidden" name="new_status" value="maintenance">
-                                        <button class="btn btn-warn btn-sm">→ Maintenance</button>
+                                        <button class="btn btn-warn btn-sm"><?= appIcon('arrow-right') ?> Maintenance</button>
                                     </form>
                                 <?php elseif ($a['status'] === 'maintenance'): ?>
                                     <form method="POST" style="display:inline">
                                         <input type="hidden" name="action" value="update_status">
                                         <input type="hidden" name="asset_id" value="<?= $a['asset_id'] ?>">
                                         <input type="hidden" name="new_status" value="available">
-                                        <button class="btn btn-success btn-sm">→ Available</button>
+                                        <button class="btn btn-success btn-sm"><?= appIcon('arrow-right') ?> Available</button>
                                     </form>
                                 <?php endif; ?>
                                 <?php if (isSuperAdmin()): ?>
@@ -264,5 +277,48 @@ include __DIR__ . '/partials/header.php';
 
 
 
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('asset-search-form');
+    const searchInput = document.getElementById('asset-search-input');
+    const table = document.getElementById('asset-table');
+    if (!form || !searchInput || !table) return;
+
+    const rows = Array.from(table.querySelectorAll('tbody tr[data-search]'));
+
+    function filterTable() {
+        const q = searchInput.value.trim().toLowerCase();
+        let visible = 0;
+
+        rows.forEach(tr => {
+            const text = (tr.dataset.search || '').toLowerCase();
+            const show = !q || text.includes(q);
+            tr.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+
+        const emptyRow = table.querySelector('.empty-row');
+        if (emptyRow) {
+            emptyRow.closest('tr').style.display = visible === 0 ? '' : 'none';
+        }
+    }
+
+    let debounceTimer;
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(filterTable, 250);
+    });
+
+    searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.submit();
+        }
+    });
+
+    if (searchInput.value.trim()) filterTable();
+});
+</script>
 
 <?php include __DIR__ . '/partials/footer.php'; ?>

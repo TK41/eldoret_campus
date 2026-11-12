@@ -79,8 +79,8 @@ include __DIR__ . '/partials/header.php';
 </style>
 
 <div class="page-header">
-    <div><h1 class="page-title">✏️ Edit Student</h1></div>
-    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" class="btn btn-ghost">← Back to Ledger</a>
+    <div><h1 class="page-title"><?= appIcon('pencil') ?> Edit Student</h1></div>
+    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Back to Ledger</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -149,7 +149,7 @@ include __DIR__ . '/partials/header.php';
                 </label>
             </div>
             <div style="display:flex;gap:10px;margin-top:8px">
-                <button type="submit" class="btn btn-primary" style="flex:1">✓ Save Changes</button>
+                <button type="submit" class="btn btn-primary" style="flex:1"><?= appIcon('check') ?> Save Changes</button>
                 <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" class="btn btn-ghost">Cancel</a>
             </div>
         </form>

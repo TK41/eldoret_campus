@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!empty($syncResult['user_id']) && !empty($syncResult['email'])) {
-            setFlash('success', "Student $full_name added successfully. ✉ KIMC email generated: " . htmlspecialchars($syncResult['email']));
+            setFlash('success', "Student $full_name added successfully. KIMC email generated: " . htmlspecialchars($syncResult['email']));
         } else {
             setFlash('success', "Student $full_name added successfully. Inventory sync completed.");
         }
@@ -88,10 +88,10 @@ include __DIR__ . '/partials/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">➕ Add Student</h1>
+        <h1 class="page-title"><?= appIcon('plus') ?> Add Student</h1>
         <p class="page-subtitle">Manually register a student in the fees module</p>
     </div>
-    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost">← Back</a>
+    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Back</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -159,7 +159,7 @@ include __DIR__ . '/partials/header.php';
                 <span style="font-size:11px;color:var(--text-muted);margin-top:4px;display:block">Auto-filled from group but can be overridden.</span>
             </div>
             <div style="display:flex;gap:10px;margin-top:8px">
-                <button type="submit" class="btn btn-primary" style="flex:1">✓ Add Student</button>
+                <button type="submit" class="btn btn-primary" style="flex:1"><?= appIcon('check') ?> Add Student</button>
                 <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost">Cancel</a>
             </div>
         </form>

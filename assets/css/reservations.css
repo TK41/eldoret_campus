@@ -1,0 +1,55 @@
+/* Admin reservation list + detail pages */
+.rv-card { margin-bottom: 24px; padding: 24px 28px; }
+.rv-card .rv-h {
+    display: flex; align-items: center; gap: 10px;
+    margin: 0 0 20px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 16px; font-weight: 600;
+}
+.rv-grid {
+    display: grid; gap: 22px 32px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.rv-field small {
+    display: block; margin-bottom: 6px;
+    font-size: 11px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-muted);
+}
+.rv-field > div { font-size: 14px; line-height: 1.5; word-break: break-word; }
+.rv-wide { grid-column: 1 / -1; }
+
+.rv-title { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.rv-title .badge { font-size: 12px; padding: 5px 12px; }
+.page-header .btn { white-space: nowrap; }
+
+.rv-actions { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+.rv-actions form { display: flex; flex-direction: column; gap: 12px; min-width: 240px; }
+.rv-actions label { display: flex; align-items: center; gap: 8px; margin: 0; }
+.rv-actions .btn { align-self: flex-start; }
+
+.rv-table th, .rv-table td { padding: 14px 16px; vertical-align: middle; }
+.rv-table .form-control { min-width: 130px; }
+.rv-table td small, .rv-sub { display: block; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+.rv-table input[type=checkbox] { width: 18px; height: 18px; }
+.rv-foot { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+
+.rv-history { list-style: none; margin: 0; padding: 0; }
+.rv-history li {
+    display: flex; flex-wrap: wrap; gap: 6px 14px;
+    padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.rv-history li:last-child { border-bottom: 0; }
+.rv-history .when { color: var(--text-muted); min-width: 150px; }
+
+.rv-filter { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.rv-filter .form-group { margin: 0; }
+.rv-list td a { text-decoration: none; }
+.rv-list td a:hover { text-decoration: underline; }
+.rv-pager { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.rv-pager > div { display: flex; gap: 10px; }
+
+@media (max-width: 640px) {
+    .rv-card { padding: 18px; }
+    .rv-actions { gap: 24px; }
+    .rv-actions form { width: 100%; }
+}

@@ -12,7 +12,7 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS fee_student_id INT UNSIGNED DEFAULT NULL;
 
 ALTER TABLE users
-  ADD CONSTRAINT IF NOT EXISTS fk_inv_fee
-    FOREIGN KEY (fee_student_id)
+  ADD CONSTRAINT fk_inv_fee
+    FOREIGN KEY IF NOT EXISTS (fee_student_id)
     REFERENCES fee_students(fee_student_id)
     ON DELETE CASCADE ON UPDATE CASCADE;

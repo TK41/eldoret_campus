@@ -74,10 +74,8 @@ if ($selectedSession) {
 // PHP helper for grade background style
 function gbg(string $g): string {
     return match($g) {
-        'A' => 'background:rgba(22,163,74,.12);color:#15803d',
-        'B' => 'background:rgba(37,99,235,.12);color:#1d4ed8',
-        'C' => 'background:rgba(217,119,6,.12);color:#b45309',
-        'D' => 'background:rgba(234,88,12,.12);color:#c2410c',
+        'A', 'B' => 'background:rgba(22,163,74,.12);color:#15803d',
+        'C', 'D' => 'background:rgba(217,119,6,.12);color:#b45309',
         default => 'background:rgba(220,38,38,.1);color:#dc2626',
     };
 }
@@ -164,13 +162,13 @@ include __DIR__ . '/partials/header.php';
 <!-- Page header -->
 <div class="page-header">
     <div>
-        <h1 class="page-title">✏️ Enter Marks</h1>
+        <h1 class="page-title"><?= appIcon('pencil') ?> Enter Marks</h1>
         <p class="page-subtitle">Marks save automatically as you type</p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="<?= APP_ROOT ?>/exams/sessions.php" class="btn btn-ghost">🗓 Sessions</a>
+        <a href="<?= APP_ROOT ?>/exams/sessions.php" class="btn btn-ghost"><?= appIcon('calendar') ?> Sessions</a>
         <?php if ($selectedSession): ?>
-        <a href="<?= APP_ROOT ?>/exams/results.php?session_id=<?= $selectedSession ?>" class="btn btn-ghost">📋 Results</a>
+        <a href="<?= APP_ROOT ?>/exams/results.php?session_id=<?= $selectedSession ?>" class="btn btn-ghost"><?= appIcon('clipboard') ?> Results</a>
         <?php endif; ?>
     </div>
 </div>
@@ -204,7 +202,7 @@ include __DIR__ . '/partials/header.php';
     <?php endif; ?>
     <?php if ($selectedSession): ?>
     <div style="align-self:flex-end">
-        <a href="<?= APP_ROOT ?>/exams/enter_marks.php" class="btn btn-ghost btn-sm">↺ Reset</a>
+        <a href="<?= APP_ROOT ?>/exams/enter_marks.php" class="btn btn-ghost btn-sm"><?= appIcon('x') ?> Reset</a>
     </div>
     <?php endif; ?>
 </div>
@@ -214,11 +212,11 @@ include __DIR__ . '/partials/header.php';
 <!-- No session -->
 <div class="card">
     <div class="card-body" style="padding:60px;text-align:center;color:var(--text-muted)">
-        <div style="font-size:48px;margin-bottom:16px">✏️</div>
+        <div style="font-size:48px;margin-bottom:16px"><?= appIcon('pencil') ?></div>
         <h3 style="margin-bottom:8px;color:var(--text-primary)">Select an Exam Session</h3>
         <p>Choose a session from the dropdown above to begin entering marks.</p>
         <?php if (empty($allSessions)): ?>
-        <a href="<?= APP_ROOT ?>/exams/sessions.php" class="btn btn-primary" style="margin-top:16px">Create First Session →</a>
+        <a href="<?= APP_ROOT ?>/exams/sessions.php" class="btn btn-primary" style="margin-top:16px">Create First Session <?= appIcon('arrow-right') ?></a>
         <?php endif; ?>
     </div>
 </div>
@@ -227,7 +225,7 @@ include __DIR__ . '/partials/header.php';
 <div class="alert alert-error">
     No students found for <strong><?= htmlspecialchars($sessionData['name'] ?? '') ?></strong>.
     Make sure students are imported in the Fees module with a matching programme before entering marks.
-    <a href="<?= APP_ROOT ?>/fees/import.php" style="margin-left:8px">Import Students →</a>
+    <a href="<?= APP_ROOT ?>/fees/import.php" style="margin-left:8px">Import Students <?= appIcon('arrow-right') ?></a>
 </div>
 
 <?php elseif (!$selectedUnit): ?>
@@ -235,13 +233,13 @@ include __DIR__ . '/partials/header.php';
 <div class="card">
     <div class="card-header">
         <span class="card-title">
-            📚 <?= htmlspecialchars($sessionData['name']) ?>
-            <?php if ($sessionData['is_locked']): ?><span class="locked-badge" style="margin-left:10px">🔒 Locked</span><?php endif; ?>
+            <?= appIcon('book-open') ?> <?= htmlspecialchars($sessionData['name']) ?>
+            <?php if ($sessionData['is_locked']): ?><span class="locked-badge" style="margin-left:10px"><?= appIcon('lock') ?> Locked</span><?php endif; ?>
         </span>
     </div>
     <div class="card-body">
         <p style="color:var(--text-muted);margin-bottom:20px">
-            <?= count($students) ?> students · <?= count($units) ?> units available. Pick a unit to enter marks.
+            <?= pluralizeCount(count($students), 'student') ?> · <?= pluralizeCount(count($units), 'unit') ?> available. Pick a unit to enter marks.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">
         <?php foreach ($units as $u):
@@ -279,11 +277,11 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
     <div>
         <div style="font-weight:700;font-size:14px;color:var(--text-primary)">
             <?= htmlspecialchars($sessionData['name']) ?>
-            <?php if ($sessionData['is_locked']): ?><span class="locked-badge" style="margin-left:8px">🔒 Locked</span><?php endif; ?>
+            <?php if ($sessionData['is_locked']): ?><span class="locked-badge" style="margin-left:8px"><?= appIcon('lock') ?> Locked</span><?php endif; ?>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
             [<?= htmlspecialchars($currentUnit['unit_code'] ?? '') ?>] <?= htmlspecialchars($currentUnit['unit_name'] ?? '') ?>
-            &nbsp;·&nbsp; <?= $filledCount ?>/<?= $totalCount ?> students
+            &nbsp;·&nbsp; <?= $filledCount ?>/<?= pluralizeCount($totalCount, 'student') ?>
             &nbsp;·&nbsp; CA /30 &nbsp; Exam /70 &nbsp; Total /100
         </div>
     </div>
@@ -299,7 +297,7 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
 <?php if (!$sessionData['is_locked']): ?>
 <div style="background:rgba(5,150,105,.06);border:1px solid rgba(5,150,105,.18);border-radius:9px;
      padding:10px 14px;font-size:12px;color:var(--text-muted);margin-bottom:14px">
-    💡 <strong>Auto-save is ON</strong> — marks save instantly as you type.
+    <?= appIcon('activity') ?> <strong>Auto-save is ON</strong> — marks save instantly as you type.
     Use <kbd style="background:var(--border);padding:1px 5px;border-radius:4px;font-size:11px">Tab</kbd> or
     <kbd style="background:var(--border);padding:1px 5px;border-radius:4px;font-size:11px">Enter</kbd> to move between cells.
     &nbsp;|&nbsp; CA: 0–30 &nbsp; Exam: 0–70
@@ -312,7 +310,7 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
     <?php if ($sessionData['is_locked']): ?>
     <div class="lock-over">
         <div class="lock-box">
-            <div style="font-size:40px;margin-bottom:10px">🔒</div>
+            <div style="font-size:40px;margin-bottom:10px"><?= appIcon('lock') ?></div>
             <h3 style="margin-bottom:8px">Session Locked</h3>
             <p style="color:var(--text-muted);font-size:13px;margin-bottom:<?= isSuperAdmin()?'16px':'0' ?>">
                 This session is locked. Contact an administrator to unlock it.
@@ -323,7 +321,7 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
                 <input type="hidden" name="action" value="toggle_lock">
                 <input type="hidden" name="session_id" value="<?= $selectedSession ?>">
                 <input type="hidden" name="lock" value="0">
-                <button type="submit" class="btn btn-primary">🔓 Unlock Session</button>
+                <button type="submit" class="btn btn-primary"><?= appIcon('unlock') ?> Unlock Session</button>
             </form>
             <?php endif; ?>
         </div>
@@ -357,8 +355,8 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
             <tr data-student="<?= htmlspecialchars($stu['student_id']) ?>"
                 data-session="<?= $selectedSession ?>" data-unit="<?= $selectedUnit ?>">
                 <td>
-                    <div style="font-weight:600"><?= htmlspecialchars($stu['full_name']) ?></div>
-                    <div style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($stu['group_name'] ?? '') ?></div>
+                    <div style="font-weight:600"><?= htmlspecialchars(formatPersonName($stu['full_name'])) ?></div>
+                    <div style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars(formatTitleCase($stu['group_name'] ?? '')) ?></div>
                 </td>
                 <td><code style="font-size:11px"><?= htmlspecialchars($stu['student_id']) ?></code></td>
                 <td style="text-align:center">
@@ -376,7 +374,7 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
                 <td style="text-align:center">
                     <span class="live-tot" id="tot-<?= $i ?>"
                           style="<?= ($tot!=='' && $tot!==null) ? gbg($grd) : 'color:var(--text-muted)' ?>">
-                        <?= ($tot!=='' && $tot!==null) ? number_format((float)$tot,1) : '—' ?>
+                        <?= ($tot!=='' && $tot!==null) ? formatMark($tot) : '—' ?>
                     </span>
                 </td>
                 <td style="text-align:center">
@@ -390,7 +388,7 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
                            maxlength="200" <?= $sessionData['is_locked']?'disabled':'' ?>>
                 </td>
                 <td style="text-align:center">
-                    <span class="si <?= $has ? 'si-ok' : '' ?>" id="si-<?= $i ?>"><?= $has ? '✓' : '○' ?></span>
+                    <span class="si <?= $has ? 'si-ok' : '' ?>" id="si-<?= $i ?>"><?= $has ? appIcon('check') : '' ?></span>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -404,6 +402,9 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
 (function(){
     const API  = '<?= APP_ROOT ?>/exams/api/save_mark.php';
     const CSRF = '<?= csrfToken() ?>';
+    const ICON_CHECK = <?= json_encode(appIcon('check')) ?>;
+    const ICON_X = <?= json_encode(appIcon('x')) ?>;
+    const ICON_CLOCK = <?= json_encode(appIcon('clock')) ?>;
     let timers = {};
 
     function gradeStyle(g) {
@@ -418,11 +419,11 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
     function rowIdx(el) {
         return [...document.querySelectorAll('#marks-tbl tbody tr')].indexOf(el.closest('tr'));
     }
-    function si(i, cls, txt) {
+    function si(i, cls, html) {
         const el = document.getElementById('si-'+i);
         if(!el) return;
         el.className = 'si ' + cls;
-        el.textContent = txt;
+        el.innerHTML = html;
     }
     function gss(txt, col) {
         const el = document.getElementById('gss');
@@ -452,11 +453,11 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
         const f   = input.dataset.field;
         const v   = input.value;
         // Local range check
-        if(f==='ca_score' && v!=='') { const n=parseFloat(v); if(n<0||n>30){input.classList.add('err-val'); si(i,'si-err','✗ 0–30'); return;} }
-        if(f==='exam_score' && v!=='') { const n=parseFloat(v); if(n<0||n>70){input.classList.add('err-val'); si(i,'si-err','✗ 0–70'); return;} }
+        if(f==='ca_score' && v!=='') { const n=parseFloat(v); if(n<0||n>30){input.classList.add('err-val'); si(i,'si-err',ICON_X+' 0–30'); return;} }
+        if(f==='exam_score' && v!=='') { const n=parseFloat(v); if(n<0||n>70){input.classList.add('err-val'); si(i,'si-err',ICON_X+' 0–70'); return;} }
         input.classList.remove('err-val');
         input.classList.add('saving');
-        si(i,'si-busy','⏳');
+        si(i,'si-busy',ICON_CLOCK);
         gss('Saving…','#d97706');
         const body = new URLSearchParams({
             session_id:row.dataset.session, unit_id:row.dataset.unit,
@@ -469,8 +470,8 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
             if(d.ok) {
                 input.classList.add('saved');
                 setTimeout(()=>input.classList.remove('saved'),2000);
-                si(i,'si-ok','✓');
-                gss('All saved ✓','#16a34a');
+                si(i,'si-ok',ICON_CHECK);
+                gss('All saved','#16a34a');
                 // Update total & grade from server
                 const tEl=document.getElementById('tot-'+i);
                 const gEl=document.getElementById('grd-'+i);
@@ -482,15 +483,15 @@ $pct = $totalCount > 0 ? round(($filledCount / $totalCount) * 100) : 0;
                 }
             } else {
                 input.classList.add('err-val');
-                si(i,'si-err','✗');
+                si(i,'si-err',ICON_X);
                 gss('Save error','#dc2626');
                 if(d.error) { const b=document.createElement('div'); b.className='alert alert-error';
-                    b.innerHTML=d.error+'<button onclick="this.parentElement.remove()" class="alert-close">×</button>';
+                    b.innerHTML=d.error+'<button onclick="this.parentElement.remove()" class="alert-close" aria-label="Dismiss message">'+ICON_X+'</button>';
                     document.querySelector('.main-content').prepend(b); }
             }
         })
         .catch(()=>{ input.classList.remove('saving'); input.classList.add('err-val');
-            si(i,'si-err','✗ Net'); gss('Network error','#dc2626'); });
+            si(i,'si-err',ICON_X+' Net'); gss('Network error','#dc2626'); });
     }
     // Score inputs
     document.querySelectorAll('.sc-in').forEach(inp=>{

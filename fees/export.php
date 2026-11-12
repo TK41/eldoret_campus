@@ -160,7 +160,7 @@ if (isset($_GET['download'])) {
 
         // Totals row
         $sheet->mergeCells('A' . $row . ':D' . $row);
-        $sheet->setCellValue('A' . $row, 'TOTALS — ' . count($students) . ' student(s)');
+        $sheet->setCellValue('A' . $row, 'TOTALS — ' . pluralizeCount(count($students), 'student'));
         $sheet->setCellValue('E' . $row, $totalFees);
         $sheet->setCellValue('F' . $row, $totalPaid);
         $sheet->setCellValue('G' . $row, $totalBal);
@@ -255,10 +255,10 @@ include __DIR__ . '/partials/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">📤 Export Excel</h1>
+        <h1 class="page-title"><?= appIcon('download') ?> Export Excel</h1>
         <p class="page-subtitle">Download fee collection data as a formatted spreadsheet</p>
     </div>
-    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost btn-sm">← Students</a>
+    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost btn-sm"><?= appIcon('arrow-left') ?> Students</a>
 </div>
 
 <div class="export-wrap">
@@ -274,11 +274,11 @@ include __DIR__ . '/partials/header.php';
 
         <!-- All Groups card -->
         <div class="group-card selected" id="card-0" onclick="selectGroup(0)">
-            <div class="check">✓</div>
-            <div class="gname">📊 All Groups</div>
+            <div class="check"><?= appIcon('check') ?></div>
+            <div class="gname"><?= appIcon('chart') ?> All Groups</div>
             <div class="gmeta">
-                <?= array_sum(array_column($groupStats, 'total')) ?> students total ·
-                <?= count($groupStats) ?> sheets
+                <?= pluralizeCount(array_sum(array_column($groupStats, 'total')), 'student') ?> total ·
+                <?= pluralizeCount(count($groupStats), 'sheet') ?>
             </div>
             <div class="gprog">
                 <?php
@@ -289,8 +289,8 @@ include __DIR__ . '/partials/header.php';
                 <div class="gfill" style="width:<?= $allPct ?>%"></div>
             </div>
             <div class="gamts">
-                <span style="color:#16a34a;font-weight:600">KES <?= number_format($allCol) ?> paid</span>
-                <span style="color:#dc2626">KES <?= number_format(max(0,$allExp-$allCol)) ?> owed</span>
+                <span style="color:#16a34a;font-weight:600"><?= formatCurrency($allCol) ?> paid</span>
+                <span style="color:#dc2626"><?= formatCurrency(max(0,$allExp-$allCol)) ?> owed</span>
             </div>
         </div>
 
@@ -298,15 +298,15 @@ include __DIR__ . '/partials/header.php';
             $pct = $g['expected'] > 0 ? min(100, ($g['collected'] / $g['expected']) * 100) : 0;
         ?>
         <div class="group-card" id="card-<?= $g['group_id'] ?>" onclick="selectGroup(<?= $g['group_id'] ?>)">
-            <div class="check">✓</div>
-            <div class="gname"><?= htmlspecialchars($g['group_label'] ?? ($g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : ''))) ?></div>
-            <div class="gmeta"><?= $g['total'] ?> student<?= $g['total'] != 1 ? 's' : '' ?></div>
+            <div class="check"><?= appIcon('check') ?></div>
+            <div class="gname"><?= htmlspecialchars(formatTitleCase($g['group_label'] ?? ($g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : '')))) ?></div>
+            <div class="gmeta"><?= pluralizeCount($g['total'], 'student') ?></div>
             <div class="gprog">
                 <div class="gfill" style="width:<?= $pct ?>%"></div>
             </div>
             <div class="gamts">
-                <span style="color:#16a34a;font-weight:600">KES <?= number_format($g['collected']) ?> paid</span>
-                <span style="color:#dc2626">KES <?= number_format(max(0,$g['expected']-$g['collected'])) ?> owed</span>
+                <span style="color:#16a34a;font-weight:600"><?= formatCurrency($g['collected']) ?> paid</span>
+                <span style="color:#dc2626"><?= formatCurrency(max(0,$g['expected']-$g['collected'])) ?> owed</span>
             </div>
         </div>
         <?php endforeach; ?>
@@ -317,9 +317,9 @@ include __DIR__ . '/partials/header.php';
         <div class="opt-title">Step 2 — Review &amp; Download</div>
 
         <div id="export-summary" style="background:rgba(22,163,74,.06);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px">
-            <strong>📊 All Groups</strong> — <?= count($groupStats) ?> sheets,
-            <?= array_sum(array_column($groupStats, 'total')) ?> students,
-            KES <?= number_format(array_sum(array_column($groupStats, 'collected'))) ?> collected
+            <strong><?= appIcon('chart') ?> All Groups</strong> — <?= pluralizeCount(count($groupStats), 'sheet') ?>,
+            <?= pluralizeCount(array_sum(array_column($groupStats, 'total')), 'student') ?>,
+            <?= formatCurrency(array_sum(array_column($groupStats, 'collected'))) ?> collected
         </div>
 
         <button class="dl-btn" id="dl-btn" onclick="triggerDownload()">
@@ -363,7 +363,7 @@ function selectGroup(id) {
     const sheetStr = m.sheets > 1 ? m.sheets + ' sheets' : '1 sheet';
 
     document.getElementById('export-summary').innerHTML =
-        '<strong>📊 ' + m.label + '</strong> — ' + sheetStr + ', ' +
+        '<strong>' + m.label + '</strong> — ' + sheetStr + ', ' +
         m.students + ' student' + (m.students !== 1 ? 's' : '') + ', ' +
         'KES ' + m.collected.toLocaleString() + ' collected';
 

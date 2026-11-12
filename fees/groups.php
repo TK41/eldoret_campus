@@ -83,7 +83,7 @@ include __DIR__ . '/partials/header.php';
 </style>
 
 <div class="page-header">
-    <div><h1 class="page-title">🗂 Groups</h1><p class="page-subtitle">Manage student intake groups and fee structures</p></div>
+    <div><h1 class="page-title"><?= appIcon('users') ?> Groups</h1><p class="page-subtitle">Manage student intake groups and fee structures</p></div>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -100,16 +100,16 @@ include __DIR__ . '/partials/header.php';
 <div class="group-card">
     <div class="group-card-header">
         <div>
-            <div class="group-title"><?= htmlspecialchars($groupLabel) ?></div>
+            <div class="group-title"><?= htmlspecialchars(formatTitleCase($groupLabel)) ?></div>
             <div style="margin-top:4px;font-size:12px;color:var(--text-muted)">
-                <span class="group-tag"><?= ucfirst($g['programme']) ?></span>
-                <?php if ($g['intake']): ?> · <?= htmlspecialchars($g['intake']) ?><?php endif; ?>
+                <span class="group-tag"><?= htmlspecialchars(formatTitleCase($g['programme'])) ?></span>
+                <?php if ($g['intake']): ?> · <?= htmlspecialchars(formatTitleCase($g['intake'])) ?><?php endif; ?>
                 <?php if ($g['year_label']): ?> · <?= htmlspecialchars($g['year_label']) ?><?php endif; ?>
-                · <?= $g['student_count'] ?> students
+                · <?= pluralizeCount($g['student_count'], 'student') ?>
             </div>
         </div>
         <div style="text-align:right">
-            <div style="font-size:18px;font-weight:700;font-family:'Space Mono',monospace">KES <?= number_format($g['total_fees']) ?></div>
+            <div style="font-size:18px;font-weight:700"><?= formatCurrency($g['total_fees']) ?></div>
             <div style="font-size:11px;color:var(--text-muted)">per student</div>
         </div>
     </div>
@@ -118,8 +118,8 @@ include __DIR__ . '/partials/header.php';
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div style="font-size:12px;color:var(--text-muted)">
-            Collected: <strong style="color:#16a34a">KES <?= number_format($g['collected']) ?></strong>
-            · Outstanding: <strong style="color:#dc2626">KES <?= number_format(max(0,$g['expected']-$g['collected'])) ?></strong>
+            Collected: <strong style="color:#16a34a"><?= formatCurrency($g['collected']) ?></strong>
+            · Outstanding: <strong style="color:#dc2626"><?= formatCurrency(max(0,$g['expected']-$g['collected'])) ?></strong>
         </div>
         <form method="POST" class="inline-edit">
             <input type="hidden" name="group_id" value="<?= $g['group_id'] ?>">
@@ -132,7 +132,7 @@ include __DIR__ . '/partials/header.php';
 
 <!-- Add new group -->
 <div class="card" style="margin-top:8px">
-    <div class="card-header"><h2 style="font-size:15px;font-weight:700;margin:0">➕ Add New Group</h2></div>
+    <div class="card-header"><h2 style="font-size:15px;font-weight:700;margin:0"><?= appIcon('plus') ?> Add New Group</h2></div>
     <div class="card-body">
         <form method="POST">
             <div class="form-row">
@@ -169,7 +169,7 @@ include __DIR__ . '/partials/header.php';
                 <input type="number" name="total_fees" class="form-control" min="1" step="0.01"
                        placeholder="e.g. 129000" value="<?= htmlspecialchars($_POST['total_fees'] ?? '') ?>">
             </div>
-            <button type="submit" name="add_group" class="btn btn-primary">✓ Create Group</button>
+            <button type="submit" name="add_group" class="btn btn-primary"><?= appIcon('check') ?> Create Group</button>
         </form>
     </div>
 </div>

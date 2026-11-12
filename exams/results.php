@@ -11,6 +11,8 @@ $db = getDB();
 $sessionFilter = intval($_GET['session_id'] ?? 0);
 $unitFilter    = intval($_GET['unit_id']    ?? 0);
 $gradeFilter   = trim($_GET['grade']        ?? '');
+$outcomeFilter = ($_GET['outcome'] ?? '') === 'pass' ? 'pass' : '';
+$showAllResults = ($_GET['all'] ?? '') === '1';
 $search        = trim($_GET['q']            ?? '');
 $viewMode      = $_GET['view'] ?? 'table';
 
@@ -27,6 +29,8 @@ if ($sessionFilter) {
         $uq->execute([$sessionData['programme']]);
         $allUnits = $uq->fetchAll();
     }
+} elseif ($showAllResults) {
+    $allUnits = $db->query("SELECT * FROM exam_units WHERE is_active=1 ORDER BY unit_code")->fetchAll();
 }
 
 $where  = ['1=1'];
@@ -34,11 +38,12 @@ $params = [];
 if ($sessionFilter) { $where[] = 'r.session_id=?'; $params[] = $sessionFilter; }
 if ($unitFilter)    { $where[] = 'r.unit_id=?';    $params[] = $unitFilter; }
 if ($gradeFilter)   { $where[] = 'r.grade=?';      $params[] = $gradeFilter; }
+if ($outcomeFilter === 'pass') { $where[] = "r.grade != 'F' AND r.total > 0"; }
 if ($search)        { $where[] = '(COALESCE(fs.full_name,r.student_id) LIKE ? OR r.student_id LIKE ?)';
                       $params[] = "%$search%"; $params[] = "%$search%"; }
 
 $results = [];
-if ($sessionFilter) {
+if ($sessionFilter || $showAllResults) {
     $rq = $db->prepare("
         SELECT r.*, u.unit_code, u.unit_name,
                COALESCE(fs.full_name, r.student_id) AS student_name,
@@ -88,13 +93,13 @@ include __DIR__ . '/partials/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">📋 View Results</h1>
-        <p class="page-subtitle"><?= $sessionData ? htmlspecialchars($sessionData['name']) : 'Select a session' ?></p>
+        <h1 class="page-title"><?= appIcon('clipboard') ?> View Results</h1>
+        <p class="page-subtitle"><?= $sessionData ? htmlspecialchars($sessionData['name']) : ($showAllResults ? 'All sessions' : 'Select a session') ?></p>
     </div>
     <div style="display:flex;gap:8px">
         <?php if ($sessionFilter): ?>
-        <a href="<?= APP_ROOT ?>/exams/enter_marks.php?session_id=<?= $sessionFilter ?>" class="btn btn-primary">✏️ Enter Marks</a>
-        <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sessionFilter ?>" class="btn btn-ghost">🎓 Transcripts</a>
+        <a href="<?= APP_ROOT ?>/exams/enter_marks.php?session_id=<?= $sessionFilter ?>" class="btn btn-primary"><?= appIcon('pencil') ?> Enter Marks</a>
+        <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sessionFilter ?>" class="btn btn-ghost"><?= appIcon('graduation-cap') ?> Transcripts</a>
         <?php endif; ?>
     </div>
 </div>
@@ -120,32 +125,32 @@ include __DIR__ . '/partials/header.php';
     <?php endif; ?>
     <select onchange="applyF('grade',this.value)">
         <option value="">All Grades</option>
-        <?php foreach(['A','B','C','D','F'] as $g): ?>
+        <?php foreach(['A','B','C','D','E','F'] as $g): ?>
         <option value="<?= $g ?>" <?= $gradeFilter===$g?'selected':'' ?>><?= $g ?></option>
         <?php endforeach; ?>
     </select>
-    <input type="text" id="sq" placeholder="🔍 Search student…"
+    <input type="text" id="sq" placeholder="Search student…"
            value="<?= htmlspecialchars($search) ?>" oninput="lsearch(this.value)">
     <div style="display:flex;gap:4px">
         <a href="?<?= http_build_query(array_merge($_GET,['view'=>'table'])) ?>" class="vbtn <?= $viewMode==='table'?'on':'' ?>">≡ Table</a>
-        <a href="?<?= http_build_query(array_merge($_GET,['view'=>'student'])) ?>" class="vbtn <?= $viewMode==='student'?'on':'' ?>">👤 By Student</a>
+        <a href="?<?= http_build_query(array_merge($_GET,['view'=>'student'])) ?>" class="vbtn <?= $viewMode==='student'?'on':'' ?>"><?= appIcon('users') ?> By Student</a>
     </div>
 </div>
 
-<?php if (!$sessionFilter): ?>
+<?php if (!$sessionFilter && !$showAllResults): ?>
 <div class="card"><div class="card-body" style="padding:50px;text-align:center;color:var(--text-muted)">
-    <div style="font-size:40px;margin-bottom:12px">📋</div><p>Select an exam session above.</p>
+    <div style="font-size:40px;margin-bottom:12px"><?= appIcon('clipboard') ?></div><p>Select an exam session above.</p>
 </div></div>
 
 <?php elseif (empty($results)): ?>
 <div class="card"><div class="card-body" style="padding:50px;text-align:center;color:var(--text-muted)">
-    <div style="font-size:36px;margin-bottom:12px">📭</div>
-    <p>No results found for this session.</p>
-    <a href="<?= APP_ROOT ?>/exams/enter_marks.php?session_id=<?= $sessionFilter ?>" class="btn btn-primary" style="margin-top:14px">✏️ Enter Marks</a>
+    <div style="font-size:36px;margin-bottom:12px"><?= appIcon('file') ?></div>
+    <p>No results match the selected filters.</p>
+    <a href="<?= APP_ROOT ?>/exams/enter_marks.php<?= $sessionFilter ? '?session_id=' . $sessionFilter : '' ?>" class="btn btn-primary" style="margin-top:14px"><?= appIcon('pencil') ?> Enter Marks</a>
 </div></div>
 
 <?php elseif ($viewMode==='student'): ?>
-<div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)"><?= count($byStudent) ?> students &nbsp;·&nbsp; <?= count($results) ?> entries</div>
+<div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)"><?= pluralizeCount(count($byStudent), 'student') ?> &nbsp;·&nbsp; <?= pluralizeCount(count($results), 'entry') ?></div>
 <div id="sl">
 <?php foreach ($byStudent as $rank => $stu):
     $ag = $stu['avg']>=70?'A':($stu['avg']>=60?'B':($stu['avg']>=50?'C':($stu['avg']>=40?'D':'F')));
@@ -153,16 +158,16 @@ include __DIR__ . '/partials/header.php';
 <div class="sb" data-n="<?= htmlspecialchars(strtolower($stu['student_name'])) ?>" data-id="<?= htmlspecialchars(strtolower($stu['student_id'])) ?>">
     <div class="sb-hd" onclick="tb(<?= $rank ?>)">
         <div style="display:flex;align-items:center;gap:12px">
-            <div style="font-size:18px;width:26px;text-align:center"><?= $rank===0?'🥇':($rank===1?'🥈':($rank===2?'🥉':$rank+1)) ?></div>
+            <div style="font-size:18px;width:26px;text-align:center"><?= $rank < 3 ? appIcon('trophy') . ' ' . ($rank + 1) : $rank + 1 ?></div>
             <div>
-                <div style="font-weight:700;font-size:14px"><?= htmlspecialchars($stu['student_name']) ?></div>
-                <div style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($stu['student_id']) ?> · <?= htmlspecialchars($stu['group_name']) ?></div>
+                <div style="font-weight:700;font-size:14px"><?= htmlspecialchars(formatPersonName($stu['student_name'])) ?></div>
+                <div style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($stu['student_id']) ?> · <?= htmlspecialchars(formatTitleCase($stu['group_name'])) ?></div>
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:12px">
-            <span style="font-size:11px;color:var(--text-muted)"><?= $stu['cnt'] ?> units</span>
-            <span class="grade-pill grade-<?= $ag ?>" style="font-size:13px;padding:5px 14px"><?= $stu['avg'] ?>%</span>
-            <span style="color:var(--text-muted)" id="ar-<?= $rank ?>">▾</span>
+            <span style="font-size:11px;color:var(--text-muted)"><?= pluralizeCount($stu['cnt'], 'unit') ?></span>
+            <span class="grade-pill grade-<?= $ag ?>" style="font-size:13px;padding:5px 14px"><?= formatPercentage($stu['avg']) ?></span>
+            <span class="expand-chevron" id="ar-<?= $rank ?>"><?= appIcon('chevron-down') ?></span>
         </div>
     </div>
     <div id="bd-<?= $rank ?>" style="display:none">
@@ -175,14 +180,16 @@ include __DIR__ . '/partials/header.php';
         <div class="ur">
             <div><code style="font-size:10px"><?= htmlspecialchars($ur['unit_code']) ?></code></div>
             <div><?= htmlspecialchars($ur['unit_name']) ?></div>
-            <div style="text-align:center;font-family:'Space Mono',monospace"><?= $ur['ca_score']??'—' ?></div>
-            <div style="text-align:center;font-family:'Space Mono',monospace"><?= $ur['exam_score']??'—' ?></div>
-            <div style="text-align:center"><span class="grade-pill grade-<?= $ur['grade'] ?>"><?= number_format((float)$ur['total'],1) ?></span></div>
+            <div style="text-align:center"><?= $ur['ca_score'] !== null ? formatMark($ur['ca_score']) : '—' ?></div>
+            <div style="text-align:center"><?= $ur['exam_score'] !== null ? formatMark($ur['exam_score']) : '—' ?></div>
+            <div style="text-align:center"><span class="grade-pill grade-<?= $ur['grade'] ?>"><?= formatMark($ur['total']) ?></span></div>
             <div style="text-align:center"><span class="grade-pill grade-<?= $ur['grade'] ?>"><?= $ur['grade'] ?></span></div>
         </div>
         <?php endforeach; ?>
         <div style="padding:10px 16px;border-top:1px solid var(--border)">
-            <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sessionFilter ?>&student_id=<?= urlencode($stu['student_id']) ?>" class="btn btn-ghost btn-sm">🎓 Transcript</a>
+            <?php if ($sessionFilter): ?>
+                <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sessionFilter ?>&student_id=<?= urlencode($stu['student_id']) ?>" class="btn btn-ghost btn-sm"><?= appIcon('graduation-cap') ?> Transcript</a>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -192,7 +199,7 @@ include __DIR__ . '/partials/header.php';
 <?php else: ?>
 <div class="card">
     <div class="card-body" style="padding:0">
-        <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)"><?= count($results) ?> results</div>
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)"><?= pluralizeCount(count($results), 'result') ?></div>
         <div style="overflow-x:auto">
         <table class="data-table" id="rt">
             <thead><tr>
@@ -204,13 +211,13 @@ include __DIR__ . '/partials/header.php';
             <tbody id="rb">
             <?php foreach ($results as $r): ?>
             <tr data-n="<?= htmlspecialchars(strtolower($r['student_name'])) ?>" data-id="<?= htmlspecialchars(strtolower($r['student_id'])) ?>">
-                <td style="font-weight:600"><?= htmlspecialchars($r['student_name']) ?></td>
+                <td style="font-weight:600"><?= htmlspecialchars(formatPersonName($r['student_name'])) ?></td>
                 <td><code style="font-size:11px"><?= htmlspecialchars($r['student_id']) ?></code></td>
                 <td><code style="font-size:11px"><?= htmlspecialchars($r['unit_code']) ?></code><br>
                     <span style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($r['unit_name']) ?></span></td>
-                <td style="text-align:center;font-family:'Space Mono',monospace;font-size:12px"><?= $r['ca_score']??'—' ?></td>
-                <td style="text-align:center;font-family:'Space Mono',monospace;font-size:12px"><?= $r['exam_score']??'—' ?></td>
-                <td style="text-align:center"><span class="grade-pill grade-<?= $r['grade'] ?>"><?= number_format((float)$r['total'],1) ?></span></td>
+                <td style="text-align:center;font-size:12px"><?= $r['ca_score'] !== null ? formatMark($r['ca_score']) : '—' ?></td>
+                <td style="text-align:center;font-size:12px"><?= $r['exam_score'] !== null ? formatMark($r['exam_score']) : '—' ?></td>
+                <td style="text-align:center"><span class="grade-pill grade-<?= $r['grade'] ?>"><?= formatMark($r['total']) ?></span></td>
                 <td style="text-align:center"><span class="grade-pill grade-<?= $r['grade'] ?>"><?= $r['grade'] ?></span></td>
                 <td style="font-size:12px;color:var(--text-muted)"><?= htmlspecialchars($r['remarks']??'') ?></td>
             </tr>
@@ -228,7 +235,11 @@ function lsearch(q){q=q.toLowerCase();
     document.querySelectorAll('#rb tr').forEach(r=>{const n=r.dataset.n||'',id=r.dataset.id||'';r.style.display=(!q||n.includes(q)||id.includes(q))?'':'none';});
     document.querySelectorAll('#sl .sb').forEach(b=>{const n=b.dataset.n||'',id=b.dataset.id||'';b.style.display=(!q||n.includes(q)||id.includes(q))?'':'none';});
 }
-function tb(i){const b=document.getElementById('bd-'+i),a=document.getElementById('ar-'+i),o=b.style.display!=='none';b.style.display=o?'none':'block';a.textContent=o?'▾':'▴';}
+function tb(i){const b=document.getElementById('bd-'+i),a=document.getElementById('ar-'+i),o=b.style.display!=='none';b.style.display=o?'none':'block';a.classList.toggle('collapsed',o);}
 const sq=document.getElementById('sq');if(sq&&sq.value)lsearch(sq.value);
 </script>
+<style>
+.expand-chevron { display: inline-flex; transition: transform .2s; }
+.expand-chevron.collapsed { transform: rotate(180deg); }
+</style>
 <?php include __DIR__ . '/partials/footer.php'; ?>

@@ -19,6 +19,7 @@ define('DB_PASS', '');            // XAMPP default is empty — change in produc
 define('APP_NAME',  'KIMC Eldoret Campus Inventory System');
 define('APP_SHORT', 'KIMC-IS');
 define('APP_ROOT',  '/eldoret_campus');  // URL path relative to htdocs
+define('BOOKING_ROOT', APP_ROOT . '/booking');  // student booking module
 
 // ============================================================
 // getDB() — returns a singleton PDO connection

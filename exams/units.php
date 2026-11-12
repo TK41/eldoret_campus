@@ -80,18 +80,18 @@ include __DIR__ . '/partials/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">📚 Units / Subjects</h1>
-        <p class="page-subtitle"><?= count($units) ?> unit<?= count($units)!==1?'s':'' ?> configured</p>
+        <h1 class="page-title"><?= appIcon('book-open') ?> Units / Subjects</h1>
+        <p class="page-subtitle"><?= pluralizeCount(count($units), 'unit') ?> configured</p>
     </div>
     <button class="btn btn-primary" onclick="document.getElementById('new-unit-modal').style.display='flex'">
-        ➕ Add Unit
+        <?= appIcon('plus') ?> Add Unit
     </button>
 </div>
 
 <?php if (!empty($errors)): ?>
 <div class="alert alert-error">
     <?= implode('<br>', array_map('htmlspecialchars', $errors)) ?>
-    <button onclick="this.parentElement.remove()" class="alert-close">×</button>
+    <button onclick="this.parentElement.remove()" class="alert-close" aria-label="Dismiss message"><?= appIcon('x') ?></button>
 </div>
 <?php endif; ?>
 
@@ -99,7 +99,7 @@ include __DIR__ . '/partials/header.php';
     <div class="card-body" style="padding:0">
     <?php if (empty($units)): ?>
         <div style="padding:50px;text-align:center;color:var(--text-muted)">
-            <div style="font-size:40px;margin-bottom:12px">📚</div>
+            <div style="font-size:40px;margin-bottom:12px"><?= appIcon('book-open') ?></div>
             <p>No units yet. Add some or they'll be seeded from the SQL file.</p>
         </div>
     <?php else: ?>
@@ -124,7 +124,7 @@ include __DIR__ . '/partials/header.php';
         <tr>
             <td colspan="<?= isSuperAdmin() ? 8 : 7 ?>"
                 style="background:var(--surface);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);padding:8px 16px">
-                📗 <?= ucfirst($u['programme']) ?> Programme
+                <?= appIcon('graduation-cap') ?> <?= ucfirst($u['programme']) ?> Programme
             </td>
         </tr>
         <?php } ?>
@@ -142,7 +142,7 @@ include __DIR__ . '/partials/header.php';
             <td style="text-align:center;font-family:'Space Mono',monospace;font-size:12px"><?= $u['result_count'] ?></td>
             <td style="text-align:center">
                 <?php if ($u['is_active']): ?>
-                    <span style="color:#16a34a;font-size:12px;font-weight:600">✅ Active</span>
+                    <span style="color:#16a34a;font-size:12px;font-weight:600"><?= appIcon('check') ?> Active</span>
                 <?php else: ?>
                     <span style="color:var(--text-muted);font-size:12px">Inactive</span>
                 <?php endif; ?>
@@ -162,7 +162,7 @@ include __DIR__ . '/partials/header.php';
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="unit_id" value="<?= $u['unit_id'] ?>">
                     <button type="submit" class="btn btn-danger btn-sm"
-                            onclick="return confirm('Delete this unit?')">🗑</button>
+                            onclick="return confirm('Delete this unit?')" aria-label="Delete unit"><?= appIcon('trash') ?></button>
                 </form>
                 <?php endif; ?>
             </td>
@@ -177,7 +177,7 @@ include __DIR__ . '/partials/header.php';
 
 <!-- Grade Scale Reference -->
 <div class="card" style="margin-top:20px">
-    <div class="card-header"><span class="card-title">📐 Grade Scale Reference</span></div>
+    <div class="card-header"><span class="card-title"><?= appIcon('chart') ?> Grade Scale Reference</span></div>
     <div class="card-body">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
             <?php
@@ -208,7 +208,7 @@ include __DIR__ . '/partials/header.php';
 <!-- ── Add Unit Modal ── -->
 <div id="new-unit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
     <div style="background:var(--surface);border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:16px">
-        <h2 style="margin-bottom:20px;font-size:18px">➕ Add New Unit</h2>
+        <h2 style="margin-bottom:20px;font-size:18px"><?= appIcon('plus') ?> Add New Unit</h2>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
             <input type="hidden" name="action" value="create">

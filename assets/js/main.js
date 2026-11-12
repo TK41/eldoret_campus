@@ -31,7 +31,7 @@ function toggleTheme() {
 
 function updateThemeIcon(theme) {
     const iconEl = document.getElementById('theme-icon');
-    if (iconEl) iconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (iconEl) iconEl.dataset.theme = theme;
 }
 
 // ============================================================
@@ -70,8 +70,17 @@ function updateThemeIcon(theme) {
 // ============================================================
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
+    if (window.innerWidth > 768) {
+        const collapsed = document.body.classList.toggle('sidebar-collapsed');
+        try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+        return;
+    }
     if (sidebar) sidebar.classList.toggle('open');
 }
+
+try {
+    if (localStorage.getItem('sidebarCollapsed') === '1') document.body.classList.add('sidebar-collapsed');
+} catch (e) {}
 
 document.addEventListener('click', function(e) {
     const sidebar = document.getElementById('sidebar');
@@ -82,6 +91,180 @@ document.addEventListener('click', function(e) {
         }
     }
 });
+
+// ============================================================
+// SHARED SHELL: breadcrumbs, notifications, and global search
+// ============================================================
+(function initSharedShell() {
+    const breadcrumbSource = document.getElementById('page-breadcrumb-source');
+    const pageHeading = document.querySelector('.main-content .page-title, .main-content h1');
+    if (breadcrumbSource && pageHeading) {
+        const breadcrumb = document.createElement('nav');
+        breadcrumb.className = 'page-breadcrumbs';
+        breadcrumb.setAttribute('aria-label', 'Breadcrumb');
+
+        const list = document.createElement('ol');
+        const moduleItem = document.createElement('li');
+        const moduleLink = document.createElement('a');
+        moduleLink.href = breadcrumbSource.dataset.homeUrl;
+        moduleLink.textContent = breadcrumbSource.dataset.moduleLabel;
+        moduleItem.appendChild(moduleLink);
+
+        const pageItem = document.createElement('li');
+        pageItem.setAttribute('aria-current', 'page');
+        pageItem.textContent = breadcrumbSource.dataset.pageTitle;
+        list.append(moduleItem, pageItem);
+        breadcrumb.appendChild(list);
+        pageHeading.insertAdjacentElement('afterend', breadcrumb);
+    }
+
+    const notificationMenu = document.getElementById('notification-menu');
+    if (notificationMenu) {
+        notificationMenu.addEventListener('toggle', function() {
+            notificationMenu.querySelector('summary').setAttribute('aria-expanded', notificationMenu.open ? 'true' : 'false');
+        });
+        document.addEventListener('click', function(e) {
+            if (notificationMenu.open && !notificationMenu.contains(e.target)) notificationMenu.open = false;
+        });
+    }
+
+    const markReadButton = document.getElementById('mark-all-notifications-read');
+    if (markReadButton) {
+        markReadButton.addEventListener('click', async function() {
+            const status = document.getElementById('notification-action-status');
+            markReadButton.disabled = true;
+            status.textContent = 'Marking notifications as read...';
+            try {
+                const response = await fetch(markReadButton.dataset.endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action: 'mark_all_read',
+                        csrf_token: markReadButton.dataset.csrf
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error('Unable to update notifications.');
+
+                document.querySelectorAll('.notification-item.unread').forEach(item => item.classList.remove('unread'));
+                document.querySelector('.notif-bell .badge-dot')?.remove();
+                notificationMenu.querySelector('summary').setAttribute('aria-label', 'Notifications');
+                status.textContent = 'All notifications marked as read.';
+            } catch (error) {
+                status.textContent = 'Could not mark notifications as read. Please try again.';
+                markReadButton.disabled = false;
+            }
+        });
+    }
+
+    const overlay = document.getElementById('global-search-overlay');
+    const trigger = document.getElementById('global-search-trigger');
+    const input = document.getElementById('global-search-input');
+    const results = document.getElementById('global-search-results');
+    const closeButton = document.getElementById('global-search-close');
+    if (!overlay || !trigger || !input || !results || !closeButton) return;
+
+    let searchTimer = null;
+    let searchController = null;
+
+    function showSearchMessage(className, message) {
+        const paragraph = document.createElement('p');
+        paragraph.className = className;
+        paragraph.textContent = message;
+        results.replaceChildren(paragraph);
+    }
+
+    function closeSearch() {
+        overlay.hidden = true;
+        input.value = '';
+        results.replaceChildren();
+        searchController?.abort();
+        trigger.focus();
+    }
+
+    function renderSearchGroups(groups) {
+        results.replaceChildren();
+        const matchingGroups = groups.filter(group => group.items.length > 0);
+        if (matchingGroups.length === 0) {
+            showSearchMessage('global-search-empty', 'No matching records found.');
+            return;
+        }
+
+        matchingGroups.forEach(group => {
+            const section = document.createElement('section');
+            section.className = 'global-search-group';
+            const heading = document.createElement('h3');
+            heading.textContent = group.label;
+            section.appendChild(heading);
+
+            group.items.forEach(item => {
+                const link = document.createElement('a');
+                link.className = 'global-search-result';
+                link.href = item.url;
+                const title = document.createElement('strong');
+                title.textContent = item.label;
+                const meta = document.createElement('span');
+                meta.textContent = item.meta;
+                link.append(title, meta);
+                link.addEventListener('click', closeSearch);
+                section.appendChild(link);
+            });
+            results.appendChild(section);
+        });
+    }
+
+    async function runGlobalSearch() {
+        const query = input.value.trim();
+        if (query.length < 2) {
+            results.replaceChildren();
+            return;
+        }
+
+        searchController?.abort();
+        searchController = new AbortController();
+        const endpoint = new URL(overlay.querySelector('.global-search-dialog').dataset.endpoint, window.location.href);
+        endpoint.searchParams.set('q', query);
+        showSearchMessage('global-search-hint', 'Searching...');
+        try {
+            const response = await fetch(endpoint, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+                signal: searchController.signal
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error('Search request failed.');
+            renderSearchGroups(data.groups);
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            showSearchMessage('global-search-error', 'Search is unavailable. Please try again.');
+        }
+    }
+
+    function openSearch() {
+        overlay.hidden = false;
+        input.focus();
+        input.select();
+    }
+
+    trigger.addEventListener('click', openSearch);
+    closeButton.addEventListener('click', closeSearch);
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeSearch();
+    });
+    input.addEventListener('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(runGlobalSearch, 180);
+    });
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            openSearch();
+        } else if (e.key === 'Escape' && !overlay.hidden) {
+            closeSearch();
+        }
+    });
+})();
 
 
 // ============================================================

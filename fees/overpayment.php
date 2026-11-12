@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 INSERT INTO fee_payments (fee_student_id,amount,mode,reference,date_paid,notes,posted_by)
                 VALUES (?,?,?,?,CURDATE(),?,?)
             ")->execute([$id, -$excess, 'other', 'REFUND-'.strtoupper(substr($student['student_id'],0,8)), 'REFUND: '.$notes, $_SESSION['admin_id']]);
-            setFlash('success', 'Refund of KES '.number_format($excess).' recorded for '.$student['full_name'].'.');
+            setFlash('success', 'Refund of '.formatCurrency($excess).' recorded for '.formatPersonName($student['full_name']).'.');
         } else {
             // Forward: find or create the student record in the next group
             // Check if student exists in target group already
@@ -88,8 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("
                 INSERT INTO fee_payments (fee_student_id,amount,mode,reference,date_paid,notes,posted_by)
                 VALUES (?,?,?,?,CURDATE(),?,?)
-            ")->execute([$id, -$excess, 'other', 'FWD-OUT-'.date('Ymd'), 'Forwarded KES '.number_format($excess).' to next semester. '.$notes, $_SESSION['admin_id']]);
-            setFlash('success', 'KES '.number_format($excess).' forwarded to next semester for '.$student['full_name'].'.');
+            ")->execute([$id, -$excess, 'other', 'FWD-OUT-'.date('Ymd'), 'Forwarded '.formatCurrency($excess).' to next semester. '.$notes, $_SESSION['admin_id']]);
+            setFlash('success', formatCurrency($excess).' forwarded to next semester for '.formatPersonName($student['full_name']).'.');
         }
         header('Location: ' . APP_ROOT . '/fees/student.php?id=' . $id); exit;
     }
@@ -115,13 +115,13 @@ include __DIR__ . '/partials/header.php';
 
 <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
     <a href="<?= APP_ROOT ?>/fees/students.php" style="color:var(--text-muted)">Students</a> ›
-    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" style="color:var(--text-muted)"><?= htmlspecialchars($student['full_name']) ?></a> ›
+    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" style="color:var(--text-muted)"><?= htmlspecialchars(formatPersonName($student['full_name'])) ?></a> ›
     Resolve Overpayment
 </div>
 
 <div class="page-header">
-    <div><h1 class="page-title">⚠️ Resolve Overpayment</h1><p class="page-subtitle"><?= htmlspecialchars($student['full_name']) ?> · <?= htmlspecialchars($student['student_id']) ?></p></div>
-    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" class="btn btn-ghost">← Back to Ledger</a>
+    <div><h1 class="page-title"><?= appIcon('alert-triangle') ?> Resolve Overpayment</h1><p class="page-subtitle"><?= htmlspecialchars(formatPersonName($student['full_name'])) ?> · <?= htmlspecialchars($student['student_id']) ?></p></div>
+    <a href="<?= APP_ROOT ?>/fees/student.php?id=<?= $id ?>" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Back to Ledger</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -132,18 +132,18 @@ include __DIR__ . '/partials/header.php';
 <div class="excess-box">
     <div>
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:4px">Excess Amount</div>
-        <div style="font-size:32px;font-weight:700;font-family:'Space Mono',monospace;color:#7c3aed">KES <?= number_format($excess) ?></div>
+        <div style="font-size:32px;font-weight:700;color:#7c3aed"><?= formatCurrency($excess) ?></div>
     </div>
     <div style="flex:1;font-size:13px;color:var(--text-muted);line-height:1.7">
-        <div>Total fees: <strong>KES <?= number_format($student['total_fees']) ?></strong></div>
-        <div>Total paid: <strong style="color:#16a34a">KES <?= number_format($totalPaid) ?></strong></div>
-        <div>Overpaid by: <strong style="color:#7c3aed">KES <?= number_format($excess) ?></strong></div>
+        <div>Total fees: <strong><?= formatCurrency($student['total_fees']) ?></strong></div>
+        <div>Total paid: <strong style="color:#16a34a"><?= formatCurrency($totalPaid) ?></strong></div>
+        <div>Overpaid by: <strong style="color:#7c3aed"><?= formatCurrency($excess) ?></strong></div>
         <?php if ($paidPersonal > 0 && $paidExternal == 0): ?>
-            <div style="margin-top:6px;color:#16a34a">✓ All payments are personal funds — refund is allowed.</div>
+            <div style="margin-top:6px;color:#16a34a"><?= appIcon('check') ?> All payments are personal funds — refund is allowed.</div>
         <?php elseif ($paidExternal > 0 && $paidPersonal == 0): ?>
-            <div style="margin-top:6px;color:#d97706">⚠ All payments are from external sources (HELB/SMIS etc.) — refund not allowed, forward only.</div>
+            <div style="margin-top:6px;color:#d97706"><?= appIcon('alert-triangle') ?> All payments are from external sources (HELB/SMIS etc.) — refund not allowed, forward only.</div>
         <?php else: ?>
-            <div style="margin-top:6px;color:#d97706">⚠ Mixed payment sources — refund allowed only for personal portion.</div>
+            <div style="margin-top:6px;color:#d97706"><?= appIcon('alert-triangle') ?> Mixed payment sources — refund allowed only for personal portion.</div>
         <?php endif; ?>
     </div>
 </div>
@@ -157,9 +157,9 @@ include __DIR__ . '/partials/header.php';
                 <label>
                     <input type="radio" name="action" value="refund" <?= ($paidPersonal <= 0) ? 'disabled' : '' ?> style="margin-top:3px;accent-color:#d97706">
                     <div>
-                        <div class="option-title">💵 Refund to Student</div>
+                        <div class="option-title"><?= appIcon('wallet') ?> Refund to Student</div>
                         <div class="option-desc">
-                            The excess of <strong>KES <?= number_format($excess) ?></strong> will be refunded directly to the student.
+                            The excess of <strong><?= formatCurrency($excess) ?></strong> will be refunded directly to the student.
                             Only available when payment was made by the student personally (M-Pesa, bank, eCitizen).
                             <?php if ($paidPersonal <= 0): ?><br><span style="color:#dc2626">Not available — no personal payments on record.</span><?php endif; ?>
                         </div>
@@ -172,15 +172,15 @@ include __DIR__ . '/partials/header.php';
                 <label>
                     <input type="radio" name="action" value="forward" style="margin-top:3px;accent-color:#d97706">
                     <div style="flex:1">
-                        <div class="option-title">➡️ Forward to Next Semester</div>
-                        <div class="option-desc">The excess of <strong>KES <?= number_format($excess) ?></strong> will be credited as a payment in the next semester. Required for HELB, SMIS, and other institutional sources.</div>
+                        <div class="option-title"><?= appIcon('arrow-right') ?> Forward to Next Semester</div>
+                        <div class="option-desc">The excess of <strong><?= formatCurrency($excess) ?></strong> will be credited as a payment in the next semester. Required for HELB, SMIS, and other institutional sources.</div>
                         <div style="margin-top:12px" id="group-select-wrap">
                             <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-muted);margin-bottom:7px">Forward to Group / Semester</label>
                             <select name="next_group_id" class="form-control">
                                 <option value="">— Select semester —</option>
                                 <?php foreach ($groups as $g): ?>
                                     <?php $groupLabel = $g['name'] . (($g['academic_year'] ?? '') ? ' (' . $g['academic_year'] . ')' : ''); ?>
-                                <option value="<?= $g['group_id'] ?>"><?= htmlspecialchars($groupLabel) ?> (KES <?= number_format($g['total_fees']) ?>)</option>
+                                <option value="<?= $g['group_id'] ?>"><?= htmlspecialchars(formatTitleCase($groupLabel)) ?> (<?= formatCurrency($g['total_fees']) ?>)</option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -193,7 +193,7 @@ include __DIR__ . '/partials/header.php';
                 <input type="text" name="notes" class="form-control" placeholder="e.g. Student requested refund via M-Pesa" value="<?= htmlspecialchars($_POST['notes']??'') ?>">
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;padding:13px">✓ Confirm Resolution</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;padding:13px"><?= appIcon('check') ?> Confirm Resolution</button>
         </form>
     </div>
 </div>

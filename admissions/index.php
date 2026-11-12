@@ -4,6 +4,8 @@
 // Single entry point for the KIMC Eldoret Admissions Portal
 // ============================================================
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../shared/formatters.php';
+require_once __DIR__ . '/../shared/icons.php';
 if (is_file(__DIR__ . '/intake.php')) {
     require_once __DIR__ . '/intake.php';
 } elseif (!function_exists('getNextAdmissionsIntake')) {
@@ -364,7 +366,7 @@ footer{
     <!-- Header -->
     <div class="portal-header">
         <div class="institute-badge">
-            🎓 <span>Kenya Institute of Mass Communication</span>
+            <?= appIcon('graduation-cap') ?> <span>Kenya Institute of Mass Communication</span>
         </div>
         <h1 class="portal-title">
             Eldoret Campus<br><em>Admissions Portal</em>
@@ -384,28 +386,28 @@ footer{
         <!-- Apply card -->
         <a href="<?= APP_ROOT ?>/admissions/apply.php" class="portal-card card-apply">
             <div class="card-corner"></div>
-            <div class="card-icon">📝</div>
+            <div class="card-icon"><?= appIcon('file-text') ?></div>
             <div class="card-tag">New Application</div>
             <div class="card-title">Apply Now</div>
             <p class="card-desc">
                 First time here? Complete the online application form to apply for a programme at KIMC Eldoret Campus. Takes about 10–15 minutes.
             </p>
             <div class="card-cta">
-                Start Application <span class="card-cta-arrow">→</span>
+                Start Application <span class="card-cta-arrow"><?= appIcon('arrow-right') ?></span>
             </div>
         </a>
 
         <!-- Status card -->
         <a href="<?= APP_ROOT ?>/admissions/status.php" class="portal-card card-status">
             <div class="card-corner"></div>
-            <div class="card-icon">🔍</div>
+            <div class="card-icon"><?= appIcon('search') ?></div>
             <div class="card-tag">Track Progress</div>
             <div class="card-title">Application Status</div>
             <p class="card-desc">
                 Already applied? Log in with your reference number and date of birth to view your current admission status.
             </p>
             <div class="card-cta">
-                Check My Status <span class="card-cta-arrow">→</span>
+                Check My Status <span class="card-cta-arrow"><?= appIcon('arrow-right') ?></span>
             </div>
         </a>
 
@@ -414,22 +416,22 @@ footer{
     <!-- Info strip -->
     <div class="info-strip">
         <div class="info-item">
-            📋 <span>Have your <strong>KCSE & KCPE</strong> certificates ready</span>
+            <?= appIcon('clipboard') ?> <span>Have your <strong>KCSE & KCPE</strong> certificates ready</span>
         </div>
         <div class="info-divider"></div>
         <div class="info-item">
-            🪪 <span>National ID or <strong>Birth Certificate</strong> required</span>
+            <?= appIcon('file') ?> <span>National ID or <strong>Birth Certificate</strong> required</span>
         </div>
         <div class="info-divider"></div>
         <div class="info-item">
-            📁 <span>All documents as <strong>PDF · max 5 MB</strong></span>
+            <?= appIcon('file') ?> <span>All documents as <strong>PDF · max 5 MB</strong></span>
         </div>
     </div>
 
 </main>
 
 <footer>
-    &copy; <?= date('Y') ?> Kenya Institute of Mass Communication — Eldoret Campus &nbsp;·&nbsp;
+    &copy; 2026 Nisat. All rights reserved. Licensed to KIMC Eldoret. &nbsp;·&nbsp;
     Admissions queries: contact the campus office directly.
 </footer>
 

@@ -349,7 +349,7 @@ if (count($portals) === 1) {
     </div>
 
     <footer class="portal-footer">
-        <span>KIMC Eldoret Campus System &copy; <?= date('Y') ?></span>
+        <span>&copy; 2026 Nisat. All rights reserved. Licensed to KIMC Eldoret.</span>
         <span class="footer-sep">|</span>
         <?php if (canAccess('inventory')): ?><a href="<?= APP_ROOT ?>/admin/dashboard.php">Inventory</a><span class="footer-sep">|</span><?php endif; ?>
         <?php if (canAccess('fees')): ?><a href="<?= APP_ROOT ?>/fees/dashboard.php">Fees</a><span class="footer-sep">|</span><?php endif; ?>

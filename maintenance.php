@@ -262,7 +262,7 @@ http_response_code(503);
   </main>
 
   <footer>
-    <span>© KIMC Eldoret</span>
+    <span>&copy; 2026 Nisat. All rights reserved. Licensed to KIMC Eldoret.</span>
     <span>We'll be right back</span>
   </footer>
 </div>

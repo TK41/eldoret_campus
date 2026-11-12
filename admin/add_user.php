@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':is_active'  => $is_active,
                 ':user_id'    => $editId,
             ]);
-            setFlash('success', "✓ Student <strong>$full_name</strong> updated successfully.");
+            setFlash('success', "Student <strong>$full_name</strong> updated successfully.");
 
         } else {
             // INSERT new record
@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':department' => $department ?: null,
                 ':tier_id'    => $tier_id,
             ]);
-            setFlash('success', "✓ Student <strong>$full_name</strong> added successfully.");
+            setFlash('success', "Student <strong>$full_name</strong> added successfully.");
         }
 
         header('Location: ' . APP_ROOT . '/admin/users.php');
@@ -177,7 +177,7 @@ include __DIR__ . '/partials/header.php';
                 : 'Add a new staff member to the inventory.' ?>
         </p>
     </div>
-    <a href="<?= APP_ROOT ?>/admin/users.php" class="btn btn-ghost">← Back to Users</a>
+    <a href="<?= APP_ROOT ?>/admin/users.php" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Back to Users</a>
 </div>
 
 <!-- Validation errors -->
@@ -191,7 +191,7 @@ include __DIR__ . '/partials/header.php';
                 <?php endforeach; ?>
             </ul>
         </div>
-        <button onclick="this.parentElement.remove()" class="alert-close">×</button>
+        <button onclick="this.parentElement.remove()" class="alert-close" aria-label="Dismiss message"><?= appIcon('x') ?></button>
     </div>
 <?php endif; ?>
 
@@ -203,7 +203,7 @@ include __DIR__ . '/partials/header.php';
     <div class="card" style="margin-bottom:20px">
         <div class="card-header">
             <h2 class="card-title">
-                <?= $isEdit ? '✏️ Student Information' : '👤 New Student Details' ?>
+                <?= appIcon($isEdit ? 'pencil' : 'users') ?> <?= $isEdit ? 'Student Information' : 'New Student Details' ?>
             </h2>
             <?php if ($isEdit): ?>
                 <span class="mono" style="color:var(--text-muted)">
@@ -325,7 +325,7 @@ include __DIR__ . '/partials/header.php';
                 </select>
                 <span class="field-hint">
                     Determines what items and how many this student can borrow.
-                    <a href="<?= APP_ROOT ?>/admin/permissions.php" target="_blank">View tier rules →</a>
+                    <a href="<?= APP_ROOT ?>/admin/permissions.php" target="_blank">View tier rules <?= appIcon('arrow-right') ?></a>
                 </span>
             </div>
 
@@ -353,7 +353,7 @@ include __DIR__ . '/partials/header.php';
     <!-- ── Tier explanation panel ── -->
     <div class="card" style="margin-bottom:20px">
         <div class="card-header">
-            <h2 class="card-title">📋 Available Borrowing Levels</h2>
+            <h2 class="card-title"><?= appIcon('clipboard') ?> Available Borrowing Levels</h2>
         </div>
         <div style="overflow-x:auto">
             <table class="data-table">
@@ -378,8 +378,8 @@ include __DIR__ . '/partials/header.php';
                             <td><?= $tier['book_loan_days'] ?> days</td>
                             <td><?= $tier['max_equipment'] == 99 ? 'Unlimited' : $tier['max_equipment'] ?></td>
                             <td><?= $tier['equip_loan_hrs'] >= 999 ? 'Custom' : $tier['equip_loan_hrs'] . 'h' ?></td>
-                            <td><?= $tier['can_reserve'] ? '✅' : '❌' ?></td>
-                            <td><?= $tier['can_kit']    ? '✅' : '❌' ?></td>
+                            <td><?= appIcon($tier['can_reserve'] ? 'check' : 'x') ?></td>
+                            <td><?= appIcon($tier['can_kit'] ? 'check' : 'x') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -454,7 +454,7 @@ include __DIR__ . '/partials/header.php';
     <!-- Submit buttons -->
     <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-lg">
-            <?= $isEdit ? '✓ Save Changes' : '✓ Add Staff Member' ?>
+            <?= appIcon($isEdit ? 'check' : 'plus') ?> <?= $isEdit ? 'Save Changes' : 'Add Staff Member' ?>
         </button>
         <?php if (!$isEdit): ?>
             <button type="reset" class="btn btn-ghost btn-lg">Reset Form</button>
