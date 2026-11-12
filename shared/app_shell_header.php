@@ -5,6 +5,12 @@ $shellModuleLinks = [
     'admissions' => ['Admissions', APP_ROOT . '/admissions/dashboard.php'],
     'exams' => ['Exams', APP_ROOT . '/exams/dashboard.php'],
 ];
+$shellAvailableModules = [];
+foreach ($shellModuleLinks as $moduleKey => $moduleLink) {
+    if (canAccess($moduleKey)) {
+        $shellAvailableModules[$moduleKey] = $moduleLink;
+    }
+}
 $shellInitialsParts = preg_split('/\s+/', trim((string) ($shellAdmin['full_name'] ?? '')));
 $shellInitials = strtoupper(substr($shellInitialsParts[0] ?? '', 0, 1)
     . (isset($shellInitialsParts[1]) ? substr($shellInitialsParts[1], 0, 1) : ''));
@@ -45,22 +51,22 @@ $shellInitials = strtoupper(substr($shellInitialsParts[0] ?? '', 0, 1)
         </a>
     </div>
     <div class="topbar-right">
-        <details class="module-switcher">
-            <summary class="module-switcher-trigger" aria-label="Open module switcher">Modules <span aria-hidden="true">▾</span></summary>
-            <div class="module-switcher-menu">
-                <a class="dropdown-item" href="<?= APP_ROOT ?>/portal.php">Portal Home</a>
-                <div class="dropdown-divider"></div>
-                <?php foreach ($shellModuleLinks as $moduleKey => $moduleLink): ?>
-                    <?php if (canAccess($moduleKey)): ?>
+        <?php if (count($shellAvailableModules) > 1): ?>
+            <details class="module-switcher">
+                <summary class="module-switcher-trigger" aria-label="Open module switcher">Modules <span aria-hidden="true">▾</span></summary>
+                <div class="module-switcher-menu">
+                    <a class="dropdown-item" href="<?= APP_ROOT ?>/portal.php">Portal Home</a>
+                    <div class="dropdown-divider"></div>
+                    <?php foreach ($shellAvailableModules as $moduleKey => $moduleLink): ?>
                         <a class="dropdown-item <?= $shellModule === $moduleKey ? 'current-module' : '' ?>"
                            href="<?= htmlspecialchars($moduleLink[1]) ?>"
                            <?= $shellModule === $moduleKey ? 'aria-current="page"' : '' ?>>
                             <?= htmlspecialchars($moduleLink[0]) ?>
                         </a>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            </div>
-        </details>
+                    <?php endforeach; ?>
+                </div>
+            </details>
+        <?php endif; ?>
         <button class="icon-btn theme-toggle-btn" type="button" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
             <span id="theme-icon">🌙</span>
         </button>
