@@ -177,6 +177,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_mode'] ?? '') === 'si
     .login-meta .small-info{display:none}
     .footer-links{display:none}
     .login-note{text-align:center;color:#111827;font-size:.84rem;padding:8px 32px 8px}
+    .login-powered{display:flex;align-items:center;justify-content:center;gap:8px;margin:6px auto 0;padding-top:12px;color:#0f172a}
+    .login-powered-label{font-size:12px;font-weight:600;letter-spacing:.02em}
+    .login-powered-logo{display:block;width:82px;max-width:28vw;height:auto;max-height:30px;object-fit:contain;flex:0 0 auto}
+    .login-powered-version{padding:3px 7px;border:1px solid rgba(15,23,42,.13);border-radius:999px;background:rgba(255,255,255,.7);font-size:10px;font-weight:700;letter-spacing:.04em}
     @media(max-width:560px){
         body{padding:0;}
         .login-page{max-width:100%;padding:28px 16px;margin:0 auto;}
@@ -279,7 +283,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_mode'] ?? '') === 'si
     </div>
 
     <div class="login-note">No account? Contact your system administrator.</div>
-    <div class="login-note">KIMC Eldoret Campus &copy; <?= date('Y') ?></div>
+    <div class="login-powered">
+        <span class="login-powered-label">Powered by</span>
+        <img class="login-powered-logo" src="<?= APP_ROOT ?>/assets/img/nisat-logo.png" alt="Nisat">
+        <span class="login-powered-version">v1.1</span>
+    </div>
 </div>
 
 <script>

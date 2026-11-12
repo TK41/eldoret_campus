@@ -143,6 +143,11 @@ $app = $db->prepare("SELECT * FROM admissions WHERE admission_id=?");
 $app->execute([$id]);
 $app = $app->fetch();
 if (!$app) { header('Location: ' . APP_ROOT . '/admissions/dashboard.php'); exit; }
+$requestedReviewStatus = $_GET['review_status'] ?? '';
+$allowedReviewStatuses = ['pending', 'shortlisted', 'admitted', 'rejected'];
+$reviewStatus = is_string($requestedReviewStatus) && in_array($requestedReviewStatus, $allowedReviewStatuses, true)
+    ? $requestedReviewStatus
+    : $app['status'];
 
 $docs = $db->prepare("SELECT * FROM admission_documents WHERE admission_id=? ORDER BY doc_id");
 $docs->execute([$id]);
@@ -161,14 +166,24 @@ $admin = getCurrentAdmin();
 $flash = getFlash();
 
 $docLabels = [
-    'application_form' => '📄 Application Form',
-    'kcse_cert'        => '🎓 KCSE Certificate',
-    'kcpe_cert'        => '📜 KCPE Certificate',
-    'birth_cert'       => '👶 Birth Certificate',
-    'national_id'      => '🪪 National ID',
-    'passport_photo'   => '🖼 Passport Photo',
-    'mpesa_proof'      => '💚 M-Pesa Proof',
-    'other'            => '📎 Other',
+    'application_form' => 'Application Form',
+    'kcse_cert'        => 'KCSE Certificate',
+    'kcpe_cert'        => 'KCPE Certificate',
+    'birth_cert'       => 'Birth Certificate',
+    'national_id'      => 'National ID',
+    'passport_photo'   => 'Passport Photo',
+    'mpesa_proof'      => 'M-Pesa Proof',
+    'other'            => 'Other',
+];
+$docIcons = [
+    'application_form' => 'file-text',
+    'kcse_cert'        => 'graduation-cap',
+    'kcpe_cert'        => 'file-text',
+    'birth_cert'       => 'file',
+    'national_id'      => 'file',
+    'passport_photo'   => 'file',
+    'mpesa_proof'      => 'credit-card',
+    'other'            => 'paperclip',
 ];
 
 include __DIR__ . '/partials/adm_header.php';
@@ -225,10 +240,10 @@ include __DIR__ . '/partials/adm_header.php';
     </div>
     <div style="display:flex;gap:8px">
         <?php if ($prevId): ?>
-        <a href="?id=<?= $prevId ?>" class="btn btn-ghost btn-sm">← Prev</a>
+        <a href="?id=<?= $prevId ?>" class="btn btn-ghost btn-sm"><?= appIcon('arrow-left') ?> Prev</a>
         <?php endif; ?>
         <?php if ($nextId): ?>
-        <a href="?id=<?= $nextId ?>" class="btn btn-ghost btn-sm">Next →</a>
+        <a href="?id=<?= $nextId ?>" class="btn btn-ghost btn-sm">Next <?= appIcon('arrow-right') ?></a>
         <?php endif; ?>
     </div>
 </div>
@@ -236,7 +251,7 @@ include __DIR__ . '/partials/adm_header.php';
 <?php if ($flash): ?>
 <div class="alert alert-<?= $flash['type'] ?>" style="margin-bottom:16px">
     <?= htmlspecialchars($flash['message']) ?>
-    <button onclick="this.parentElement.remove()" style="float:right;background:none;border:none;cursor:pointer;font-size:16px">×</button>
+    <button onclick="this.parentElement.remove()" style="float:right;background:none;border:none;cursor:pointer;font-size:16px" aria-label="Dismiss message"><?= appIcon('x') ?></button>
 </div>
 <?php endif; ?>
 
@@ -248,12 +263,12 @@ include __DIR__ . '/partials/adm_header.php';
         </div>
         <div>
             <div style="font-size:19px;font-weight:700;color:var(--text-primary)">
-                <?= htmlspecialchars($app['surname'].', '.$app['first_name'].($app['middle_name']?' '.$app['middle_name']:'')) ?>
+                <?= htmlspecialchars(formatPersonName($app['surname'].', '.$app['first_name'].($app['middle_name']?' '.$app['middle_name']:''))) ?>
             </div>
             <div style="font-size:13px;color:var(--text-muted);margin-top:3px">
                 <code><?= htmlspecialchars($app['reference_no']) ?></code>
-                &nbsp;·&nbsp; <?= htmlspecialchars($app['programme_name']) ?>
-                &nbsp;·&nbsp; Submitted <?= date('d M Y, g:i a', strtotime($app['submitted_at'])) ?>
+                &nbsp;·&nbsp; <?= htmlspecialchars(formatTitleCase($app['programme_name'])) ?>
+                &nbsp;·&nbsp; Submitted <span class="date-value"><?= formatDate($app['submitted_at'], true) ?></span>
             </div>
         </div>
     </div>
@@ -272,15 +287,15 @@ include __DIR__ . '/partials/adm_header.php';
             <div class="info-section">
                 <div class="info-section-title">Programme</div>
                 <div class="info-row"><span class="info-label">Type</span><span class="info-value" style="text-transform:capitalize"><?= $app['programme_type'] ?></span></div>
-                <div class="info-row"><span class="info-label">Programme</span><span class="info-value"><?= htmlspecialchars($app['programme_name']) ?></span></div>
+                <div class="info-row"><span class="info-label">Programme</span><span class="info-value"><?= htmlspecialchars(formatTitleCase($app['programme_name'])) ?></span></div>
                 <div class="info-row"><span class="info-label">Study Mode</span><span class="info-value" style="text-transform:capitalize"><?= str_replace('_',' ',$app['study_mode']) ?></span></div>
             </div>
 
             <!-- Personal -->
             <div class="info-section">
                 <div class="info-section-title">Personal Information</div>
-                <div class="info-row"><span class="info-label">Full Name</span><span class="info-value"><?= htmlspecialchars($app['surname'].', '.$app['first_name'].($app['middle_name']?' '.$app['middle_name']:'')) ?></span></div>
-                <div class="info-row"><span class="info-label">Date of Birth</span><span class="info-value"><?= $app['date_of_birth'] ? date('d M Y', strtotime($app['date_of_birth'])) : '—' ?></span></div>
+                <div class="info-row"><span class="info-label">Full Name</span><span class="info-value"><?= htmlspecialchars(formatPersonName($app['surname'].', '.$app['first_name'].($app['middle_name']?' '.$app['middle_name']:''))) ?></span></div>
+                <div class="info-row"><span class="info-label">Date of Birth</span><span class="info-value date-value"><?= formatDate($app['date_of_birth']) ?></span></div>
                 <div class="info-row"><span class="info-label">Gender</span><span class="info-value" style="text-transform:capitalize"><?= $app['gender'] ?? '—' ?></span></div>
                 <div class="info-row"><span class="info-label">Nationality</span><span class="info-value"><?= htmlspecialchars($app['nationality'] ?? '—') ?></span></div>
                 <div class="info-row"><span class="info-label">National ID</span><span class="info-value"><code><?= htmlspecialchars($app['national_id'] ?? '—') ?></code></span></div>
@@ -327,7 +342,7 @@ include __DIR__ . '/partials/adm_header.php';
                 <?php endforeach; ?>
                 <?php if ($app['expelled']): ?>
                 <div style="background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);border-radius:8px;padding:10px 12px;font-size:13px;color:#991b1b;margin-top:8px">
-                    ⚠️ <strong>Previously expelled/discontinued.</strong><br>
+                    <?= appIcon('alert-triangle') ?> <strong>Previously expelled/discontinued.</strong><br>
                     <span style="color:var(--text-muted)"><?= htmlspecialchars($app['expelled_details'] ?? '') ?></span>
                 </div>
                 <?php endif; ?>
@@ -353,8 +368,8 @@ include __DIR__ . '/partials/adm_header.php';
             <div class="info-section">
                 <div class="info-section-title">Financing &amp; Additional</div>
                 <div class="info-row"><span class="info-label">Sponsor</span><span class="info-value"><?= htmlspecialchars($app['sponsor_name'] ?? '—') ?></span></div>
-                <div class="info-row"><span class="info-label">Disability</span><span class="info-value"><?= $app['has_disability'] ? '✓ '.htmlspecialchars($app['disability_details'] ?? '') : 'None' ?></span></div>
-                <div class="info-row"><span class="info-label">Accommodation</span><span class="info-value"><?= $app['needs_accommodation'] ? '✓ Requested' : 'Not requested' ?></span></div>
+                <div class="info-row"><span class="info-label">Disability</span><span class="info-value"><?= $app['has_disability'] ? appIcon('check') . ' ' . htmlspecialchars($app['disability_details'] ?? '') : 'None' ?></span></div>
+                <div class="info-row"><span class="info-label">Accommodation</span><span class="info-value"><?= $app['needs_accommodation'] ? appIcon('check') . ' Requested' : 'Not requested' ?></span></div>
                 <div class="info-row"><span class="info-label">Heard via</span><span class="info-value"><?= htmlspecialchars($app['heard_via'] ?? '—') ?></span></div>
                 <div class="info-row"><span class="info-label">IP Address</span><span class="info-value"><code style="font-size:11px"><?= htmlspecialchars($app['ip_address'] ?? '—') ?></code></span></div>
             </div>
@@ -368,19 +383,19 @@ include __DIR__ . '/partials/adm_header.php';
 
     <!-- Uploaded Documents -->
     <div class="sidebar-card">
-        <div class="sidebar-card-hd">📎 Uploaded Documents <span style="margin-left:auto;font-size:12px;font-weight:400;color:var(--text-muted)"><?= count($docs) ?> file<?= count($docs)!==1?'s':'' ?></span></div>
+        <div class="sidebar-card-hd"><?= appIcon('file') ?> Uploaded Documents <span style="margin-left:auto;font-size:12px;font-weight:400;color:var(--text-muted)"><?= pluralizeCount(count($docs), 'file') ?></span></div>
         <div class="sidebar-card-body">
             <?php if (empty($docs)): ?>
             <div style="color:var(--text-muted);font-size:13px">No documents uploaded.</div>
             <?php else: ?>
             <?php foreach ($docs as $d): ?>
             <div class="doc-card">
-                <div class="doc-icon"><?= explode(' ',$docLabels[$d['doc_type']]??'📎')[0] ?></div>
+                <div class="doc-icon"><?= appIcon($docIcons[$d['doc_type']] ?? 'file') ?></div>
                 <div class="doc-info">
                     <div class="doc-name" title="<?= htmlspecialchars($d['original_name']) ?>"><?= htmlspecialchars($d['original_name']) ?></div>
                     <div class="doc-meta">
-                        <?= isset($docLabels[$d['doc_type']]) ? ltrim(strstr($docLabels[$d['doc_type']],' ')) : $d['doc_type'] ?>
-                        · <?= $d['file_size'] ? number_format($d['file_size']/1024,0).' KB' : '—' ?>
+                        <?= $docLabels[$d['doc_type']] ?? $d['doc_type'] ?>
+                        · <?= $d['file_size'] ? formatNumber($d['file_size'] / 1024) . ' KB' : '—' ?>
                     </div>
                 </div>
                 <a href="<?= APP_ROOT ?>/admissions/view_doc.php?doc_id=<?= $d['doc_id'] ?>"
@@ -396,7 +411,7 @@ include __DIR__ . '/partials/adm_header.php';
             $hasBirthOrId  = in_array('birth_cert',$uploadedTypes) || in_array('national_id',$uploadedTypes);
             $missing = [];
             foreach ($requiredTypes as $rt) { if (!in_array($rt,$uploadedTypes)) $missing[] = $docLabels[$rt]; }
-            if (!$hasBirthOrId) $missing[] = '👶/🪪 Birth Cert or National ID';
+            if (!$hasBirthOrId) $missing[] = 'Birth Certificate or National ID';
             ?>
             <?php if (!empty($missing)): ?>
             <div style="margin-top:10px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#991b1b">
@@ -407,15 +422,15 @@ include __DIR__ . '/partials/adm_header.php';
             </div>
             <?php else: ?>
             <div style="margin-top:10px;background:rgba(22,163,74,.07);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:8px 12px;font-size:12px;color:#15803d">
-                ✅ All required documents submitted
+                <?= appIcon('check') ?> All required documents submitted
             </div>
             <?php endif; ?>
         </div>
     </div>
 
     <!-- Status update -->
-    <div class="sidebar-card">
-        <div class="sidebar-card-hd">🔖 Application Status</div>
+    <div class="sidebar-card" id="review">
+        <div class="sidebar-card-hd"><?= appIcon('clipboard') ?> Application Status</div>
         <div class="sidebar-card-body">
             <div style="margin-bottom:12px">
                 <span class="status-pill sp-<?= $app['status'] ?>" style="font-size:13px;padding:6px 16px">
@@ -430,13 +445,13 @@ include __DIR__ . '/partials/adm_header.php';
             <?php endif; ?>
             <?php if ($app['status'] === 'rejected' && !empty($app['rejection_reason'])): ?>
             <div style="background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);border-radius:8px;padding:10px 12px;font-size:13px;color:#991b1b;margin-bottom:12px">
-                <strong style="display:block;margin-bottom:3px">❌ Rejection Reason (shown to applicant):</strong>
+                <strong style="display:block;margin-bottom:3px"><?= appIcon('x') ?> Rejection Reason (shown to applicant):</strong>
                 <?= nl2br(htmlspecialchars($app['rejection_reason'])) ?>
             </div>
             <?php endif; ?>
             <?php if ($app['reviewed_at']): ?>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">
-                Last reviewed: <?= date('d M Y, g:i a', strtotime($app['reviewed_at'])) ?>
+                Last reviewed: <span class="date-value"><?= formatDate($app['reviewed_at'], true) ?></span>
             </div>
             <?php endif; ?>
             <?php if (!empty($_GET['show_provision']) && !empty($_SESSION['provision_preview'])):
@@ -493,7 +508,7 @@ include __DIR__ . '/partials/adm_header.php';
                             onchange="toggleRejectionField()"
                             style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--input-bg,var(--surface));color:var(--text-primary);font-family:inherit;font-size:13px">
                         <?php foreach(['pending','shortlisted','admitted','rejected'] as $s): ?>
-                        <option value="<?= $s ?>" <?= $app['status']===$s?'selected':'' ?>><?= ucfirst($s) ?></option>
+                        <option value="<?= $s ?>" <?= $reviewStatus === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -501,7 +516,7 @@ include __DIR__ . '/partials/adm_header.php';
                 <!-- Rejection reason — visible only when status = rejected -->
                 <div id="rejection-reason-wrap" style="margin-bottom:12px;display:<?= $app['status']==='rejected'?'block':'none' ?>">
                     <label style="font-size:12px;font-weight:600;display:block;margin-bottom:5px;color:#dc2626">
-                        ❌ Rejection Reason <span style="color:#dc2626">*</span>
+                        <?= appIcon('x') ?> Rejection Reason <span style="color:#dc2626">*</span>
                         <span style="font-weight:400;color:var(--text-muted);font-size:11px"> — visible to applicant</span>
                     </label>
                     <textarea name="rejection_reason" id="rejection-reason-field"
@@ -536,17 +551,17 @@ include __DIR__ . '/partials/adm_header.php';
                 if (sel.value === 'rejected') {
                     wrap.style.display = 'block';
                     field.setAttribute('required','required');
-                    btn.textContent = '❌ Mark as Rejected';
+                    btn.textContent = 'Mark as Rejected';
                     btn.style.background = 'linear-gradient(135deg,#b91c1c,#dc2626)';
                 } else if (sel.value === 'admitted') {
                     wrap.style.display = 'none';
                     field.removeAttribute('required');
-                    btn.textContent = '🎉 Mark as Admitted';
+                    btn.textContent = 'Mark as Admitted';
                     btn.style.background = 'linear-gradient(135deg,#15803d,#16a34a)';
                 } else if (sel.value === 'shortlisted') {
                     wrap.style.display = 'none';
                     field.removeAttribute('required');
-                    btn.textContent = '📋 Mark as Shortlisted';
+                    btn.textContent = 'Mark as Shortlisted';
                     btn.style.background = 'linear-gradient(135deg,#1d4ed8,#2563eb)';
                 } else {
                     wrap.style.display = 'none';
@@ -584,9 +599,9 @@ include __DIR__ . '/partials/adm_header.php';
 
     <!-- Quick links -->
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="<?= APP_ROOT ?>/admissions/dashboard.php" class="btn btn-ghost btn-sm">← All Applications</a>
-        <?php if ($prevId): ?><a href="?id=<?= $prevId ?>" class="btn btn-ghost btn-sm">← Prev</a><?php endif; ?>
-        <?php if ($nextId): ?><a href="?id=<?= $nextId ?>" class="btn btn-ghost btn-sm">Next →</a><?php endif; ?>
+        <a href="<?= APP_ROOT ?>/admissions/dashboard.php" class="btn btn-ghost btn-sm"><?= appIcon('arrow-left') ?> All Applications</a>
+        <?php if ($prevId): ?><a href="?id=<?= $prevId ?>" class="btn btn-ghost btn-sm"><?= appIcon('arrow-left') ?> Prev</a><?php endif; ?>
+        <?php if ($nextId): ?><a href="?id=<?= $nextId ?>" class="btn btn-ghost btn-sm">Next <?= appIcon('arrow-right') ?></a><?php endif; ?>
     </div>
 </div>
 </div><!-- /.app-grid -->

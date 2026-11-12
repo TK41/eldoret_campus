@@ -8,6 +8,8 @@
 //   2. Manual lookup: applicant types their ref no + date of birth
 // ============================================================
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../shared/formatters.php';
+require_once __DIR__ . '/../shared/icons.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
@@ -72,7 +74,7 @@ if ($app) {
 function statusConfig(string $status): array {
     return match($status) {
         'pending'     => [
-            'icon'    => '🕐',
+            'icon'    => 'clock',
             'label'   => 'Pending Review',
             'color'   => '#b45309',
             'bg'      => 'rgba(217,119,6,.08)',
@@ -81,7 +83,7 @@ function statusConfig(string $status): array {
             'body'    => 'Our admissions team has received your application and is currently reviewing your documents. You will be notified of any updates.',
         ],
         'shortlisted' => [
-            'icon'    => '📋',
+            'icon'    => 'clipboard',
             'label'   => 'Shortlisted',
             'color'   => '#1d4ed8',
             'bg'      => 'rgba(37,99,235,.07)',
@@ -90,7 +92,7 @@ function statusConfig(string $status): array {
             'body'    => 'Congratulations — your application has been shortlisted. The final admission decision is currently being processed. Please check back soon.',
         ],
         'admitted'    => [
-            'icon'    => '🎉',
+            'icon'    => 'check',
             'label'   => 'Admitted',
             'color'   => '#15803d',
             'bg'      => 'rgba(22,163,74,.07)',
@@ -99,7 +101,7 @@ function statusConfig(string $status): array {
             'body'    => 'Congratulations! You have been officially admitted to KIMC Eldoret Campus. Please report to the campus admissions office to complete your enrolment.',
         ],
         'rejected'    => [
-            'icon'    => '❌',
+            'icon'    => 'x',
             'label'   => 'Not Admitted',
             'color'   => '#dc2626',
             'bg'      => 'rgba(220,38,38,.07)',
@@ -108,7 +110,7 @@ function statusConfig(string $status): array {
             'body'    => 'We regret to inform you that your application was not successful at this time. Please see the feedback below from our admissions team.',
         ],
         default       => [
-            'icon'    => '📄',
+            'icon'    => 'file',
             'label'   => ucfirst($status),
             'color'   => '#6b7280',
             'bg'      => 'rgba(107,114,128,.07)',
@@ -151,6 +153,7 @@ function statusStep(string $current): array {
     --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
 }
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:var(--ink);min-height:100vh}
+.nisat-license-footer{text-align:center;padding:18px 20px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);background:#fff}
 
 /* ── Topbar ── */
 .topbar{background:var(--navy);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
@@ -269,7 +272,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
             <div class="brand-sub">Admissions Portal</div>
         </div>
     </a>
-    <a href="<?= APP_ROOT ?>/admissions/index.php" class="btn btn-ghost" style="font-size:12px;padding:7px 14px">← Admissions Portal</a>
+    <a href="<?= APP_ROOT ?>/admissions/index.php" class="btn btn-ghost" style="font-size:12px;padding:7px 14px"><?= appIcon('arrow-left') ?> Admissions Portal</a>
 </header>
 
 <div class="hero">
@@ -295,7 +298,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
 
     <?php if ($justSubmitted): ?>
     <div class="submitted-note">
-        <div class="submitted-note-icon">🎉</div>
+        <div class="submitted-note-icon"><?= appIcon('check') ?></div>
         <div>
             <strong style="display:block;margin-bottom:3px">Application received successfully!</strong>
             Your application has been submitted and is now under review by the admissions team.
@@ -309,11 +312,11 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
 
         <!-- Status banner -->
         <div class="status-banner" style="background:<?= $cfg['bg'] ?>;border-bottom:1px solid <?= $cfg['border'] ?>">
-            <div class="status-banner-icon"><?= $cfg['icon'] ?></div>
+            <div class="status-banner-icon"><?= appIcon($cfg['icon']) ?></div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
                 <div class="status-banner-heading"><?= htmlspecialchars($cfg['heading']) ?></div>
                 <span class="status-pill" style="background:<?= $cfg['bg'] ?>;border:1px solid <?= $cfg['border'] ?>;color:<?= $cfg['color'] ?>">
-                    <?= $cfg['icon'] ?> <?= htmlspecialchars($cfg['label']) ?>
+                    <?= appIcon($cfg['icon']) ?> <?= htmlspecialchars($cfg['label']) ?>
                 </span>
             </div>
             <p class="status-banner-body"><?= htmlspecialchars($cfg['body']) ?></p>
@@ -329,7 +332,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
                 $cls     = $isDone ? 'done' : ($isAct ? 'active' : '');
             ?>
             <div class="tl-step <?= $cls ?>">
-                <div class="tl-dot"><?= $isDone ? '✓' : ($isAct ? ($i+1) : ($i+1)) ?></div>
+                <div class="tl-dot"><?= $isDone ? appIcon('check') : ($i + 1) ?></div>
                 <div class="tl-label"><?= htmlspecialchars($step['label']) ?></div>
                 <div class="tl-sub"><?= htmlspecialchars($step['sub']) ?></div>
             </div>
@@ -339,17 +342,17 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
         <!-- Rejected mini bar -->
         <div class="timeline">
             <div class="tl-step done">
-                <div class="tl-dot">✓</div>
+                <div class="tl-dot"><?= appIcon('check') ?></div>
                 <div class="tl-label">Received</div>
                 <div class="tl-sub">Submitted</div>
             </div>
             <div class="tl-step done">
-                <div class="tl-dot">✓</div>
+                <div class="tl-dot"><?= appIcon('check') ?></div>
                 <div class="tl-label">Reviewed</div>
                 <div class="tl-sub">Documents checked</div>
             </div>
             <div class="tl-step rejected-step">
-                <div class="tl-dot">✕</div>
+                <div class="tl-dot"><?= appIcon('x') ?></div>
                 <div class="tl-label">Not Admitted</div>
                 <div class="tl-sub">Final decision</div>
             </div>
@@ -359,7 +362,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
         <!-- Rejection reason -->
         <?php if ($isRej && !empty($app['rejection_reason'])): ?>
         <div class="rejection-box">
-            <div class="rejection-box-title">📋 Feedback from Admissions Team</div>
+            <div class="rejection-box-title"><?= appIcon('clipboard') ?> Feedback from Admissions Team</div>
             <div class="rejection-box-text"><?= nl2br(htmlspecialchars($app['rejection_reason'])) ?></div>
         </div>
         <?php endif; ?>
@@ -380,7 +383,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
             </div>
             <div class="detail-item">
                 <div class="detail-label">Programme</div>
-                <div class="detail-value"><?= htmlspecialchars($app['programme_name']) ?></div>
+                <div class="detail-value"><?= htmlspecialchars(formatTitleCase($app['programme_name'])) ?></div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Programme Type</div>
@@ -388,12 +391,12 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
             </div>
             <div class="detail-item">
                 <div class="detail-label">Submitted</div>
-                <div class="detail-value"><?= date('d M Y', strtotime($app['submitted_at'])) ?></div>
+                <div class="detail-value date-value"><?= formatDate($app['submitted_at']) ?></div>
             </div>
             <?php if ($app['reviewed_at']): ?>
             <div class="detail-item">
                 <div class="detail-label">Last Updated</div>
-                <div class="detail-value"><?= date('d M Y', strtotime($app['reviewed_at'])) ?></div>
+                <div class="detail-value date-value"><?= formatDate($app['reviewed_at']) ?></div>
             </div>
             <?php endif; ?>
         </div>
@@ -405,7 +408,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
             <?php else: ?>
                 <?php foreach ($statusDocs as $document): ?>
                 <div class="document-row">
-                    <span aria-hidden="true">📄</span>
+                    <span aria-hidden="true"><?= appIcon('file') ?></span>
                     <span class="document-name" title="<?= htmlspecialchars($document['original_name']) ?>"><?= htmlspecialchars($document['original_name']) ?></span>
                     <span class="document-meta"><?= htmlspecialchars(str_replace('_', ' ', $document['doc_type'])) ?></span>
                 </div>
@@ -415,7 +418,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
 
         <div class="card-foot">
             <span style="font-size:12px;color:var(--muted)">Need to correct information or a document?</span>
-            <a href="<?= APP_ROOT ?>/admissions/apply.php?update=1&amp;ref=<?= urlencode($app['reference_no']) ?>&amp;dob=<?= urlencode($app['date_of_birth']) ?>" class="btn btn-primary" style="width:auto;text-decoration:none">Update Existing Application →</a>
+            <a href="<?= APP_ROOT ?>/admissions/apply.php?update=1&amp;ref=<?= urlencode($app['reference_no']) ?>&amp;dob=<?= urlencode($app['date_of_birth']) ?>" class="btn btn-primary" style="width:auto;text-decoration:none">Update Existing Application <?= appIcon('arrow-right') ?></a>
         </div>
 
 <?php else: ?>
@@ -425,12 +428,12 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
     ══════════════════════════════════════════ -->
 
     <?php if ($lookupErr): ?>
-    <div class="alert-err">⚠️ <?= htmlspecialchars($lookupErr) ?></div>
+    <div class="alert-err"><?= appIcon('alert-triangle') ?> <?= htmlspecialchars($lookupErr) ?></div>
     <?php endif; ?>
 
     <div class="card">
         <div class="card-hd">
-            <div class="card-hd-icon">🔍</div>
+            <div class="card-hd-icon"><?= appIcon('search') ?></div>
             <div>
                 <div class="card-hd-title">Check Application Status</div>
                 <div class="card-hd-sub">Enter the details below to view your admission progress</div>
@@ -450,7 +453,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
                     <input type="date" name="date_of_birth" required
                            value="<?= htmlspecialchars($_POST['date_of_birth'] ?? '') ?>">
                 </div>
-                <button type="submit" class="btn btn-primary">View Application Status →</button>
+                <button type="submit" class="btn btn-primary">View Application Status <?= appIcon('arrow-right') ?></button>
             </form>
         </div>
     </div>
@@ -470,5 +473,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--cream);color:va
 <?php endif; ?>
 
 </div><!-- /.page-wrap -->
+<footer class="nisat-license-footer">&copy; 2026 Nisat. All rights reserved. Licensed to KIMC Eldoret.</footer>
 </body>
 </html>

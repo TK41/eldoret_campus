@@ -17,6 +17,42 @@ $backQuery = http_build_query([
 ]);
 $backUrl = APP_ROOT . '/fees/students.php' . ($backQuery ? '?' . $backQuery : '');
 
+$paymentSortColumns = [
+    'date_paid' => 'p.date_paid',
+    'amount' => 'p.amount',
+    'mode' => 'p.mode',
+    'phone' => 'p.mpesa_number',
+    'reference' => 'p.reference',
+    'posted_by' => 'posted_by_name',
+];
+$requestedPaymentSort = $_GET['sort'] ?? 'date_paid';
+$paymentSortKey = is_string($requestedPaymentSort) && isset($paymentSortColumns[$requestedPaymentSort])
+    ? $requestedPaymentSort
+    : 'date_paid';
+$requestedPaymentDirection = $_GET['dir'] ?? 'asc';
+$paymentSortDirection = is_string($requestedPaymentDirection) && strtolower($requestedPaymentDirection) === 'desc'
+    ? 'DESC'
+    : 'ASC';
+$buildPaymentUrl = static function (array $changes = []): string {
+    $query = $_GET;
+    foreach ($changes as $key => $value) {
+        $query[$key] = $value;
+    }
+    return APP_ROOT . '/fees/student.php' . ($query ? '?' . http_build_query($query) : '');
+};
+$paymentSortHeader = static function (string $label, string $key, bool $money = false) use (
+    $paymentSortKey,
+    $paymentSortDirection,
+    $buildPaymentUrl
+): string {
+    $nextDirection = $paymentSortKey === $key && $paymentSortDirection === 'ASC' ? 'desc' : 'asc';
+    $ariaSort = $paymentSortKey === $key ? ($paymentSortDirection === 'ASC' ? 'ascending' : 'descending') : 'none';
+    $indicator = $paymentSortKey === $key ? ($paymentSortDirection === 'ASC' ? '↑' : '↓') : '↕';
+    $href = htmlspecialchars($buildPaymentUrl(['sort' => $key, 'dir' => $nextDirection]), ENT_QUOTES, 'UTF-8');
+    return '<th scope="col"' . ($money ? ' class="fee-money"' : '') . ' aria-sort="' . $ariaSort . '"><a class="table-sort-link" href="' . $href . '">' .
+        htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '<span aria-hidden="true">' . $indicator . '</span></a></th>';
+};
+
 if (!$id) { header('Location: ' . $backUrl); exit; }
 
 // ── DELETE payment ──
@@ -42,7 +78,7 @@ $payments = $db->prepare("
     FROM fee_payments p
     LEFT JOIN admin_users a ON a.admin_id=p.posted_by
     WHERE p.fee_student_id=?
-    ORDER BY p.date_paid ASC, p.created_at ASC
+    ORDER BY " . $paymentSortColumns[$paymentSortKey] . " $paymentSortDirection, p.payment_id DESC
 ");
 $payments->execute([$id]);
 $payments = $payments->fetchAll();
@@ -51,7 +87,7 @@ $totalPaid    = array_sum(array_column($payments, 'amount'));
 $balance      = $student['total_fees'] - $totalPaid;
 $pct          = $student['total_fees'] > 0 ? min(100, ($totalPaid / $student['total_fees']) * 100) : 0;
 
-$pageTitle  = htmlspecialchars($student['full_name']);
+$pageTitle  = formatPersonName($student['full_name']);
 $activePage = 'fees_students';
 
 include __DIR__ . '/partials/header.php';
@@ -85,6 +121,12 @@ include __DIR__ . '/partials/header.php';
 .mode-receipted   { background:rgba(139,92,246,.1);  color:#7c3aed; }
 .mode-nairobi-campus { background:rgba(6,182,212,.1); color:#0891b2; }
 .mode-other       { background:rgba(107,114,128,.1); color:#6b7280; }
+.fees-data-table th,.fees-data-table td{padding:12px 14px}
+.fees-data-table thead th{position:sticky;top:0;z-index:2;background:var(--surface)}
+.fees-data-table .fee-money{text-align:right;font-family:'Space Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fees-data-table .table-sort-link{display:inline-flex;align-items:center;gap:6px;color:inherit;text-decoration:none;white-space:nowrap}
+.fees-data-table .table-sort-link:hover{color:var(--module-accent)}
+.fees-data-table .table-sort-link span{font-size:11px;color:var(--text-muted)}
 
 @media print {
     .topbar, .sidebar, .app-footer, .no-print { display:none !important; }
@@ -95,20 +137,20 @@ include __DIR__ . '/partials/header.php';
 
 <!-- Breadcrumb -->
 <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
-    <a href="<?= htmlspecialchars($backUrl) ?>" style="color:var(--text-muted)">Students</a> › <?= htmlspecialchars($student['full_name']) ?>
+    <a href="<?= htmlspecialchars($backUrl) ?>" style="color:var(--text-muted)">Students</a> › <?= htmlspecialchars(formatPersonName($student['full_name'])) ?>
 </div>
 
 <!-- Student header card -->
 <div class="student-header">
     <div style="display:flex;align-items:center;gap:16px;flex:1">
-        <div class="student-avatar"><?= strtoupper(substr($student['full_name'],0,1)) ?></div>
+        <div class="student-avatar"><?= strtoupper(substr(formatPersonName($student['full_name']),0,1)) ?></div>
         <div class="student-meta">
-            <div class="student-name"><?= htmlspecialchars($student['full_name']) ?></div>
+            <div class="student-name"><?= htmlspecialchars(formatPersonName($student['full_name'])) ?></div>
             <div class="student-sub">
                 <code><?= htmlspecialchars($student['student_id']) ?></code>
-                · <?= htmlspecialchars($student['group_name']) ?>
+                · <?= htmlspecialchars(formatTitleCase($student['group_name'])) ?>
                 <?php if ($student['programme']): ?>
-                    · <span><?= htmlspecialchars($student['programme']) ?></span>
+                    · <span><?= htmlspecialchars(formatTitleCase($student['programme'])) ?></span>
                 <?php endif; ?>
             </div>
 
@@ -118,19 +160,19 @@ include __DIR__ . '/partials/header.php';
             </div>
             <div class="stat-row">
                 <div class="stat-item">
-                    <div class="val" style="color:#16a34a">KES <?= number_format($totalPaid) ?></div>
+                    <div class="val" style="color:#16a34a"><?= formatCurrency($totalPaid) ?></div>
                     <div class="lbl">Paid</div>
                 </div>
                 <div class="stat-item">
-                    <div class="val" style="color:<?= $balance > 0 ? '#dc2626' : '#16a34a' ?>">KES <?= number_format(max(0,$balance)) ?></div>
+                    <div class="val" style="color:<?= $balance > 0 ? '#dc2626' : '#16a34a' ?>"><?= formatCurrency(max(0,$balance)) ?></div>
                     <div class="lbl">Balance</div>
                 </div>
                 <div class="stat-item">
-                    <div class="val">KES <?= number_format($student['total_fees']) ?></div>
+                    <div class="val"><?= formatCurrency($student['total_fees']) ?></div>
                     <div class="lbl">Total Fees</div>
                 </div>
                 <div class="stat-item">
-                    <div class="val"><?= number_format($pct, 1) ?>%</div>
+                    <div class="val"><?= formatPercentage($pct) ?></div>
                     <div class="lbl">Cleared</div>
                 </div>
             </div>
@@ -138,35 +180,36 @@ include __DIR__ . '/partials/header.php';
     </div>
 
     <div class="no-print" style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-        <a href="<?= APP_ROOT ?>/fees/add_payment.php?student_id=<?= $id ?>" class="btn btn-primary">➕ Post Payment</a>
-        <button onclick="window.print()" class="btn btn-ghost">🖨 Print Statement</button>
-        <a href="<?= APP_ROOT ?>/fees/edit_student.php?id=<?= $id ?>" class="btn btn-ghost" style="font-size:12px">✏️ Edit Student</a>
+        <a href="<?= APP_ROOT ?>/fees/add_payment.php?student_id=<?= $id ?>" class="btn btn-primary"><?= appIcon('plus') ?> Post Payment</a>
+        <button onclick="window.print()" class="btn btn-ghost"><?= appIcon('printer') ?> Print Statement</button>
+        <a href="<?= APP_ROOT ?>/fees/edit_student.php?id=<?= $id ?>" class="btn btn-ghost" style="font-size:12px"><?= appIcon('pencil') ?> Edit Student</a>
     </div>
 </div>
 
 <!-- Payment history table -->
 <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-        <h2 style="font-size:15px;font-weight:700;margin:0">Payment History (<?= count($payments) ?> entries)</h2>
+        <h2 style="font-size:15px;font-weight:700;margin:0">Payment History (<?= pluralizeCount(count($payments), 'entry') ?>)</h2>
         <?php if ($balance <= 0): ?>
-            <span style="background:rgba(22,163,74,.1);color:#16a34a;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">✓ FULLY PAID</span>
+            <span style="background:rgba(22,163,74,.1);color:#16a34a;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700"><?= appIcon('check') ?> FULLY PAID</span>
         <?php endif; ?>
     </div>
     <div class="card-body" style="padding:0">
         <?php if (empty($payments)): ?>
             <div style="padding:40px;text-align:center;color:var(--text-muted)">
-                No payments posted yet. <a href="<?= APP_ROOT ?>/fees/add_payment.php?student_id=<?= $id ?>">Post first payment →</a>
+                No payments posted yet. <a href="<?= APP_ROOT ?>/fees/add_payment.php?student_id=<?= $id ?>">Post first payment <?= appIcon('arrow-right') ?></a>
             </div>
         <?php else: ?>
-        <table class="data-table">
+        <div class="table-scroll">
+        <table class="data-table fees-data-table">
             <thead><tr>
                 <th>#</th>
-                <th>Date Paid</th>
-                <th>Amount</th>
-                <th>Mode</th>
-                <th>Phone / Ref No</th>
-                <th>Transaction Code</th>
-                <th>Posted By</th>
+                <?= $paymentSortHeader('Date Paid', 'date_paid') ?>
+                <?= $paymentSortHeader('Amount', 'amount', true) ?>
+                <?= $paymentSortHeader('Mode', 'mode') ?>
+                <?= $paymentSortHeader('Phone / Ref No', 'phone') ?>
+                <?= $paymentSortHeader('Transaction Code', 'reference') ?>
+                <?= $paymentSortHeader('Posted By', 'posted_by') ?>
                 <th class="no-print">Action</th>
             </tr></thead>
             <tbody>
@@ -176,16 +219,16 @@ include __DIR__ . '/partials/header.php';
             ?>
                 <tr>
                     <td style="color:var(--text-muted);font-size:12px"><?= $i+1 ?></td>
-                    <td><?= date('d M Y', strtotime($p['date_paid'])) ?></td>
-                    <td><strong>KES <?= number_format($p['amount']) ?></strong></td>
+                    <td class="date-value"><?= formatDate($p['date_paid']) ?></td>
+                    <td class="fee-money"><strong><?= formatCurrency($p['amount']) ?></strong></td>
                     <td><span class="mode-badge mode-<?= $modeKey ?>"><?= strtoupper(str_replace(['_'],['  '],$p['mode'])) ?></span></td>
                     <td style="font-family:'Space Mono',monospace;font-size:11px"><?= htmlspecialchars($p['mpesa_number'] ?? '—') ?></td>
                     <td style="font-family:'Space Mono',monospace;font-size:11px;font-weight:600"><?= htmlspecialchars($p['reference'] ?? '—') ?></td>
-                    <td style="font-size:12px;color:var(--text-muted)"><?= htmlspecialchars($p['posted_by_name']) ?></td>
+                    <td style="font-size:12px;color:var(--text-muted)"><?= htmlspecialchars(formatPersonName($p['posted_by_name'])) ?></td>
                     <td class="no-print">
                         <?php if (isSuperAdmin()): ?>
                         <form method="POST" style="display:inline"
-                              onsubmit="return confirm('Delete this payment of KES <?= number_format($p['amount']) ?>?')">
+                              onsubmit="return confirm('Delete this payment of <?= formatCurrency($p['amount']) ?>?')">
                             <input type="hidden" name="payment_id" value="<?= $p['payment_id'] ?>">
                             <button type="submit" name="delete_payment" class="btn btn-danger btn-sm">Delete</button>
                         </form>
@@ -197,16 +240,17 @@ include __DIR__ . '/partials/header.php';
             <tfoot>
                 <tr style="background:var(--table-head-bg);font-weight:700">
                     <td colspan="2" style="padding:12px 16px;text-align:right;font-size:13px">TOTAL PAID</td>
-                    <td style="padding:12px 16px;color:#16a34a;font-family:'Space Mono',monospace">KES <?= number_format($totalPaid) ?></td>
+                    <td class="fee-money" style="padding:12px 16px;color:#16a34a"><?= formatCurrency($totalPaid) ?></td>
                     <td colspan="5"></td>
                 </tr>
                 <tr style="background:var(--table-head-bg);font-weight:700">
                     <td colspan="2" style="padding:12px 16px;text-align:right;font-size:13px">BALANCE</td>
-                    <td style="padding:12px 16px;color:<?= $balance > 0 ? '#dc2626':'#16a34a' ?>;font-family:'Space Mono',monospace">KES <?= number_format(max(0,$balance)) ?></td>
+                    <td class="fee-money" style="padding:12px 16px;color:<?= $balance > 0 ? '#dc2626':'#16a34a' ?>"><?= formatCurrency(max(0,$balance)) ?></td>
                     <td colspan="5"></td>
                 </tr>
             </tfoot>
         </table>
+        </div>
         <?php endif; ?>
     </div>
 </div>

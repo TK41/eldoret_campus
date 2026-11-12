@@ -7,6 +7,8 @@
 
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../auth/session.php';
+require_once __DIR__ . '/../booking/reservation_helpers.php';
+require_once __DIR__ . '/../shared/dashboard_components.php';
 
 // Redirect to login if not authenticated
 requireLogin();
@@ -20,6 +22,15 @@ $activePage = 'dashboard';
 // ============================================================
 $db = getDB();
 
+$pending_reservations = (int) $db->query("
+    SELECT COUNT(*) FROM reservations WHERE status = 'pending'
+")->fetchColumn();
+$reservations_today = (int) $db->query("
+    SELECT COUNT(*) FROM reservations
+    WHERE submitted_at >= CURDATE()
+      AND submitted_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+")->fetchColumn();
+
 // Total assets by type and status
 $stats = $db->query("
     SELECT
@@ -28,9 +39,14 @@ $stats = $db->query("
         SUM(asset_type = 'book')      AS total_books,
         SUM(status = 'available')     AS available,
         SUM(status = 'checked_out')   AS checked_out,
+        SUM(status = 'reserved')      AS reserved,
+        SUM(status = 'missing')       AS missing,
         SUM(status = 'maintenance')   AS maintenance
     FROM assets WHERE status != 'retired'
 ")->fetch();
+foreach (['total', 'total_equipment', 'total_books', 'available', 'checked_out', 'reserved', 'missing', 'maintenance'] as $statKey) {
+    $stats[$statKey] = (int) ($stats[$statKey] ?? 0);
+}
 
 // Overdue transactions WITH borrower info
 $overdue_borrowers = $db->query("
@@ -41,24 +57,35 @@ $overdue_borrowers = $db->query("
         u.phone,
         COUNT(DISTINCT t.txn_id) AS item_count,
         GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ') AS items,
-        MIN(TIMESTAMPDIFF(HOUR, t.due_at, NOW())) AS hours_overdue,
+        MAX(TIMESTAMPDIFF(HOUR, t.due_at, NOW())) AS hours_overdue,
         SUM(t.fine_amount) AS total_fine
     FROM transactions t
     JOIN users u ON t.user_id = u.user_id
     JOIN assets a ON t.asset_id = a.asset_id
-    WHERE t.returned_at IS NULL AND t.due_at < NOW()
+    WHERE t.returned_at IS NULL
+      AND COALESCE(t.condition_in, '') != 'missing'
+      AND t.due_at < NOW()
     GROUP BY u.user_id
-    ORDER BY t.due_at ASC
+    ORDER BY MAX(t.due_at) ASC
 ")->fetchAll();
 
-// Count of overdue items
-$overdue_count = count($overdue_borrowers);
+// Count overdue transactions separately from the grouped borrower list.
+$overdue_count = (int) $db->query("
+    SELECT COUNT(*)
+    FROM transactions t
+    WHERE t.returned_at IS NULL
+      AND COALESCE(t.condition_in, '') != 'missing'
+      AND t.due_at < NOW()
+")->fetchColumn();
+$overdue_borrower_count = count($overdue_borrowers);
 
 // Items due today
-$due_today = $db->query("
+$due_today = (int) $db->query("
     SELECT COUNT(*) FROM transactions
     WHERE returned_at IS NULL
-    AND due_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 24 HOUR)
+      AND COALESCE(condition_in, '') != 'missing'
+      AND due_at >= NOW()
+      AND due_at < DATE_ADD(NOW(), INTERVAL 24 HOUR)
 ")->fetchColumn();
 
 // Total fines outstanding
@@ -69,15 +96,14 @@ $total_fines = $db->query("
 // ============================================================
 // Fetch recent transactions (last 10)
 // ============================================================
-// For kit transactions, only show ONE representative row per kit_group_id
-// (the first component). Non-kit rows show normally.
+// Show one representative row per reservation or kit group, not one row per component.
 $recent_txns = $db->query("
     SELECT
         t.txn_id,
         a.name         AS asset_name,
         a.asset_code,
         a.asset_type,
-        a.kit_id,
+        kc.kit_id,
         k.name         AS kit_name,
         k.kit_code,
         u.full_name    AS borrower,
@@ -87,6 +113,7 @@ $recent_txns = $db->query("
         t.returned_at,
         t.fine_amount,
         t.kit_group_id,
+        t.reservation_id,
         CASE
             WHEN t.returned_at IS NOT NULL THEN 'returned'
             WHEN t.due_at < NOW()          THEN 'overdue'
@@ -96,12 +123,29 @@ $recent_txns = $db->query("
     FROM transactions t
     JOIN assets      a  ON t.asset_id = a.asset_id
     JOIN users       u  ON t.user_id  = u.user_id
-    LEFT JOIN kits   k  ON a.kit_id   = k.kit_id
+    LEFT JOIN (
+        SELECT asset_id, MIN(kit_id) AS kit_id
+        FROM kit_components
+        GROUP BY asset_id
+    ) kc ON a.asset_id = kc.asset_id
+    LEFT JOIN kits k ON kc.kit_id = k.kit_id
     WHERE (
-        a.kit_id IS NULL
-        OR t.txn_id = (
-            SELECT MIN(t2.txn_id) FROM transactions t2
-            WHERE t2.kit_group_id = t.kit_group_id AND t2.kit_group_id IS NOT NULL
+        (
+            t.reservation_id IS NOT NULL
+            AND t.txn_id = (
+                SELECT MIN(t2.txn_id) FROM transactions t2
+                WHERE t2.reservation_id = t.reservation_id
+            )
+        )
+        OR (
+            t.reservation_id IS NULL
+            AND (
+                kc.kit_id IS NULL
+                OR t.txn_id = (
+                    SELECT MIN(t2.txn_id) FROM transactions t2
+                    WHERE t2.kit_group_id = t.kit_group_id AND t2.kit_group_id IS NOT NULL
+                )
+            )
         )
     )
     ORDER BY t.checkout_at DESC
@@ -118,14 +162,18 @@ include __DIR__ . '/partials/header.php';
 <div class="page-header">
     <div>
         <h1 class="page-title">Dashboard</h1>
-        <p class="page-subtitle"><?= date('l, d F Y') ?> &mdash; Welcome back, <strong><?= htmlspecialchars($admin['full_name']) ?></strong>!</p>
+        <p class="page-subtitle">
+            <?= date('l, j F Y') ?> · <?= pluralizeCount($stats['checked_out'], 'item') ?> out ·
+            <?= pluralizeCount($overdue_count, 'overdue item') ?> ·
+            <?= $due_today === 0 ? 'Nothing due in the next 24 hours' : pluralizeCount($due_today, 'item') . ' due in the next 24 hours' ?>
+        </p>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <div class="dashboard-actions">
         <a href="<?= APP_ROOT ?>/portal.php" class="btn btn-ghost btn-sm" style="text-decoration:none">
-            🏠 Portal
+            <?= appIcon('home') ?> Portal
         </a>
         <a href="<?= APP_ROOT ?>/admin/transactions.php?action=checkout" class="btn btn-primary">
-            + New Check-Out
+            <?= appIcon('arrow-left-right') ?> New Check-Out
         </a>
     </div>
 </div>
@@ -133,75 +181,136 @@ include __DIR__ . '/partials/header.php';
 <!-- ============================================================
      STAT CARDS
 ============================================================ -->
-<div class="stats-grid">
-
-    <div class="stat-card accent-blue">
-        <div class="stat-label">Total Assets</div>
-        <div class="stat-value"><?= number_format($stats['total']) ?></div>
-        <div class="stat-sub"><?= $stats['total_equipment'] ?> equipment &middot; <?= $stats['total_books'] ?> books</div>
-    </div>
-
-    <div class="stat-card accent-green">
-        <div class="stat-label">Available Now</div>
-        <div class="stat-value"><?= number_format($stats['available']) ?></div>
-        <div class="stat-sub"><?= $stats['checked_out'] ?> currently out</div>
-    </div>
-
-    <div class="stat-card accent-red">
-        <div class="stat-label">Overdue Items</div>
-        <div class="stat-value"><?= $overdue_count ?></div>
-        <div class="stat-sub">KES <?= number_format($total_fines, 2) ?> in outstanding fines</div>
-    </div>
-
-    <div class="stat-card accent-orange">
-        <div class="stat-label">Due in 24 Hours</div>
-        <div class="stat-value"><?= $due_today ?></div>
-        <div class="stat-sub">Alerts scheduled</div>
-    </div>
-
+<div class="dashboard-stat-grid">
+    <?php
+    renderDashboardStatCard([
+        'label' => 'Total Assets',
+        'value' => formatNumber($stats['total']),
+        'summary' => $stats['total'] > 0
+            ? formatNumber($stats['total_equipment']) . ' equipment · ' . formatNumber($stats['total_books']) . ' books'
+            : 'No assets have been added yet',
+        'href' => APP_ROOT . '/admin/assets.php',
+        'tone' => 'info',
+        'problem' => true,
+        'active' => (int) $stats['total'] > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Available Now',
+        'value' => formatNumber($stats['available']),
+        'summary' => (int) $stats['total'] === 0
+            ? 'Add assets to see what is available'
+            : ((int) $stats['available'] === 0 ? 'No items are currently available' : pluralizeCount($stats['checked_out'], 'item') . ' currently out'),
+        'href' => APP_ROOT . '/admin/assets.php?status=available',
+        'tone' => $stats['available'] > 0 ? 'success' : 'warning',
+        'problem' => true,
+        'active' => (int) $stats['total'] > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Overdue Items',
+        'value' => formatNumber($overdue_count),
+        'summary' => $overdue_count > 0 ? formatCurrency($total_fines, true) . ' in outstanding fines' : 'Nothing overdue right now',
+        'href' => APP_ROOT . '/admin/transactions.php?status=overdue',
+        'tone' => 'danger',
+        'problem' => true,
+        'active' => $overdue_count > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Due in 24 Hours',
+        'value' => formatNumber($due_today),
+        'summary' => $due_today > 0 ? 'Items due soon' : 'Nothing due in the next 24 hours',
+        'href' => APP_ROOT . '/admin/transactions.php?due=next24',
+        'tone' => 'warning',
+        'problem' => true,
+        'active' => $due_today > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Pending Bookings',
+        'value' => formatNumber($pending_reservations),
+        'summary' => $pending_reservations > 0 ? 'Student requests awaiting review' : 'No booking requests awaiting review',
+        'href' => APP_ROOT . '/admin/reservations.php?status=pending',
+        'tone' => 'warning',
+        'problem' => true,
+        'active' => $pending_reservations > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Missing Assets',
+        'value' => formatNumber($stats['missing']),
+        'summary' => $stats['missing'] > 0 ? 'Still outstanding' : 'No missing assets',
+        'href' => APP_ROOT . '/admin/assets.php?status=missing',
+        'tone' => 'danger',
+        'problem' => true,
+        'active' => $stats['missing'] > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Reservations Today',
+        'value' => formatNumber($reservations_today),
+        'summary' => $reservations_today > 0 ? 'Requests submitted today' : 'No reservations submitted today',
+        'href' => APP_ROOT . '/admin/reservations.php?date=today',
+        'tone' => 'info',
+        'problem' => true,
+        'active' => $reservations_today > 0,
+    ]);
+    renderDashboardStatCard([
+        'label' => 'Under Maintenance',
+        'value' => formatNumber($stats['maintenance']),
+        'summary' => $stats['maintenance'] > 0 ? 'Items unavailable for checkout' : 'No items under maintenance',
+        'href' => APP_ROOT . '/admin/assets.php?status=maintenance',
+        'tone' => 'warning',
+        'problem' => true,
+        'active' => $stats['maintenance'] > 0,
+    ]);
+    ?>
 </div>
 
 <!-- ============================================================
      MAIN DASHBOARD GRID: Overdue + Recent Txns + Inventory Health
 ============================================================ -->
-<div style="display: grid; grid-template-columns: 1fr 360px; gap: 24px;">
+<div class="dashboard-main-grid">
 
     <!-- Left Column: Overdue Borrowers (if any) + Recent Transactions -->
     <div>
 
-        <!-- 🚨 OVERDUE BORROWERS PANEL (only shown when there are overdue items) -->
-        <?php if ($overdue_count > 0): ?>
-        <div class="card" style="margin-bottom: 24px; background: rgba(220, 38, 38, .06); border: 1px solid rgba(220, 38, 38, .2);">
-            <div class="card-header" style="border-bottom: 1px solid rgba(220, 38, 38, .2);">
-                <h2 class="card-title" style="color: #dc2626;">🚨 Overdue Borrowers (<?= $overdue_count ?> active)</h2>
+        <!-- Overdue borrowers panel (only shown when there are overdue items) -->
+        <?php if ($overdue_borrower_count > 0): ?>
+        <div class="card overdue-borrowers-card">
+            <div class="card-header">
+                <h2 class="card-title" style="color: #dc2626;"><?= appIcon('alert-triangle') ?> Overdue Borrowers (<?= $overdue_borrower_count ?> active)</h2>
             </div>
-            <div style="max-height: 400px; overflow-y: auto;">
+            <div class="overdue-borrowers-list">
                 <?php foreach ($overdue_borrowers as $borrower): ?>
                     <?php
-                        $days_overdue = intdiv($borrower['hours_overdue'], 24);
-                        $hours_part = $borrower['hours_overdue'] % 24;
+                        $hoursOverdue = max(0, (int) $borrower['hours_overdue']);
+                        $days_overdue = intdiv($hoursOverdue, 24);
+                        $hours_part = $hoursOverdue % 24;
                         $fine_estimated = $borrower['total_fine'];
                     ?>
-                    <div style="padding: 14px 16px; border-bottom: 1px solid rgba(220, 38, 38, .15); display: flex; gap: 12px; align-items: flex-start;">
+                    <div class="overdue-borrower-row">
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <strong style="color: #dc2626;"><?= htmlspecialchars($borrower['full_name']) ?></strong>
+                                <strong style="color: var(--text-primary);"><?= htmlspecialchars(formatPersonName($borrower['full_name'])) ?></strong>
                                 <span class="mono" style="font-size: 11px; color: var(--text-muted);"><?= htmlspecialchars($borrower['student_id']) ?></span>
                             </div>
                             <div style="font-size: 12px; color: var(--text-primary); margin-bottom: 6px;">
                                 <?= htmlspecialchars(substr($borrower['items'], 0, 60)) ?><?= strlen($borrower['items']) > 60 ? '...' : '' ?>
                             </div>
-                            <div style="display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
-                                <span><strong style="color: #dc2626;"><?= $days_overdue ?>d <?= $hours_part ?>h</strong> overdue</span>
-                                <span>Fine: <strong style="color: #dc2626;">KES <?= number_format($fine_estimated, 2) ?></strong></span>
+                            <div class="overdue-borrower-meta">
+                                <span class="overdue-pill"><?= $days_overdue ?>d <?= $hours_part ?>h overdue</span>
+                                <span>Fine: <strong style="color: #dc2626;"><?= formatCurrency($fine_estimated, true) ?></strong></span>
                             </div>
                             <?php if ($borrower['phone']): ?>
-                                <a href="tel:<?= urlencode($borrower['phone']) ?>" class="btn btn-ghost btn-xs" style="text-decoration: none; color: #1a3a6b;">
-                                    📞 Call <?= htmlspecialchars($borrower['phone']) ?>
+                                <a href="tel:<?= urlencode($borrower['phone']) ?>" class="btn btn-ghost btn-sm" style="text-decoration: none; color: #1a3a6b;">
+                                    <?= appIcon('phone') ?> Call <?= htmlspecialchars($borrower['phone']) ?>
                                 </a>
                             <?php else: ?>
-                                <span style="font-size: 11px; color: var(--text-muted);">No phone on file</span>
+                                <span class="no-phone-label">No phone on file</span>
+                                <a href="<?= APP_ROOT ?>/admin/add_user.php?edit=<?= (int) $borrower['user_id'] ?>" class="btn btn-ghost btn-sm">Add phone</a>
                             <?php endif; ?>
+                            <form method="POST" action="<?= APP_ROOT ?>/admin/notifications.php" class="queue-overdue-reminder">
+                                <input type="hidden" name="action" value="generate_overdue">
+                                <input type="hidden" name="user_id" value="<?= (int) $borrower['user_id'] ?>">
+                                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                                <button type="submit" class="btn btn-ghost btn-sm"><?= appIcon('bell') ?> Queue reminder</button>
+                            </form>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -241,7 +350,7 @@ include __DIR__ . '/partials/header.php';
                                             <button class="expand-btn"
                                                     onclick="toggleDashKit(<?= $i ?>)"
                                                     title="Show kit items">
-                                                <span class="expand-arrow">▶</span>
+                                                <span class="expand-arrow"><?= appIcon('chevron-down') ?></span>
                                             </button>
                                         <?php endif; ?>
                                     </td>
@@ -249,7 +358,7 @@ include __DIR__ . '/partials/header.php';
                                     <!-- Item name -->
                                     <td>
                                         <?php if (!empty($txn['kit_group_id'])): ?>
-                                            <strong>🎒 <?= htmlspecialchars($txn['kit_name'] ?? $txn['asset_name']) ?></strong><br>
+                                            <strong><?= appIcon(!empty($txn['kit_name']) ? 'backpack' : 'package') ?> <?= htmlspecialchars($txn['kit_name'] ?? $txn['asset_name']) ?></strong><br>
                                             <span class="mono" style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($txn['kit_code'] ?? '') ?></span>
                                         <?php else: ?>
                                             <strong><?= htmlspecialchars($txn['asset_name']) ?></strong><br>
@@ -257,16 +366,16 @@ include __DIR__ . '/partials/header.php';
                                         <?php endif; ?>
                                     </td>
 
-                                    <td><?= htmlspecialchars($txn['borrower']) ?></td>
+                                    <td><?= htmlspecialchars(formatPersonName($txn['borrower'])) ?></td>
 
                                     <td class="mono" style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($txn['student_id']) ?></td>
 
                                     <td class="mono" style="font-size:12px">
-                                        <?= date('d M, H:i', strtotime($txn['checkout_at'])) ?>
+                                        <?= htmlspecialchars(reservationFormatLocalDateTime($txn['checkout_at'])) ?>
                                     </td>
 
                                     <td class="mono" style="font-size:12px">
-                                        <?= date('d M, H:i', strtotime($txn['due_at'])) ?>
+                                        <?= htmlspecialchars(reservationFormatLocalDateTime($txn['due_at'])) ?>
                                     </td>
 
                                     <td>
@@ -286,10 +395,12 @@ include __DIR__ . '/partials/header.php';
                                                 ELSE 'active' END AS comp_status
                                     FROM transactions t2
                                     JOIN assets a ON t2.asset_id = a.asset_id
-                                    WHERE t2.kit_group_id = ?
+                                    WHERE " . (!empty($txn['reservation_id']) ? 't2.reservation_id = ?' : 't2.kit_group_id = ?') . "
                                     ORDER BY a.name
                                 ");
-                                $kitComps->execute([$txn['kit_group_id']]);
+                                $kitComps->execute([
+                                    !empty($txn['reservation_id']) ? $txn['reservation_id'] : $txn['kit_group_id']
+                                ]);
                                 $kitComps = $kitComps->fetchAll();
                                 ?>
                                 <tr class="kit-dash-panel" id="dash-kit-<?= $i ?>" style="display:none">
@@ -329,66 +440,58 @@ include __DIR__ . '/partials/header.php';
         <!-- INVENTORY HEALTH -->
         <div class="card" style="margin-bottom: 24px;">
             <div class="card-header">
-                <h2 class="card-title">📊 Inventory Health</h2>
+                <h2 class="card-title"><?= appIcon('chart') ?> Inventory Health</h2>
             </div>
-            <div style="padding: 16px;">
-
-                <!-- Available Assets Progress -->
-                <div style="margin-bottom: 18px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
-                        <span style="font-weight: 600;">Available</span>
-                        <span style="color: var(--text-muted);"><?= $stats['available'] ?> / <?= $stats['total'] ?></span>
+            <div class="inventory-health-list">
+                <?php
+                $inventoryHealthMetrics = [
+                    ['key' => 'available', 'label' => 'Available', 'tone' => 'success'],
+                    ['key' => 'checked_out', 'label' => 'Checked out', 'tone' => 'info'],
+                    ['key' => 'reserved', 'label' => 'Reserved', 'tone' => 'warning'],
+                    ['key' => 'maintenance', 'label' => 'Maintenance', 'tone' => 'warning'],
+                    ['key' => 'missing', 'label' => 'Missing', 'tone' => 'danger'],
+                ];
+                foreach ($inventoryHealthMetrics as $metric):
+                    $metricCount = $stats[$metric['key']];
+                    $metricPercent = $stats['total'] > 0 ? min(100, max(0, ($metricCount / $stats['total']) * 100)) : 0;
+                ?>
+                <div class="inventory-health-item">
+                    <div class="inventory-health-label">
+                        <strong><?= $metric['label'] ?></strong>
+                        <span><?= formatNumber($metricCount) ?> / <?= formatNumber($stats['total']) ?></span>
                     </div>
-                    <div style="width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-                        <div style="height: 100%; background: #10b981; width: <?= $stats['total'] > 0 ? ($stats['available'] / $stats['total'] * 100) : 0 ?>%;"></div>
-                    </div>
-                </div>
-
-                <!-- Checked Out Assets Progress -->
-                <div style="margin-bottom: 18px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
-                        <span style="font-weight: 600;">Checked Out</span>
-                        <span style="color: var(--text-muted);"><?= $stats['checked_out'] ?> / <?= $stats['total'] ?></span>
-                    </div>
-                    <div style="width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-                        <div style="height: 100%; background: #f59e0b; width: <?= $stats['total'] > 0 ? ($stats['checked_out'] / $stats['total'] * 100) : 0 ?>%;"></div>
-                    </div>
-                </div>
-
-                <!-- Maintenance Assets Progress -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
-                        <span style="font-weight: 600;">Maintenance</span>
-                        <span style="color: var(--text-muted);"><?= $stats['maintenance'] ?> / <?= $stats['total'] ?></span>
-                    </div>
-                    <div style="width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-                        <div style="height: 100%; background: #ef4444; width: <?= $stats['total'] > 0 ? ($stats['maintenance'] / $stats['total'] * 100) : 0 ?>%;"></div>
+                    <div class="inventory-health-track" role="progressbar"
+                         aria-label="<?= $metric['label'] ?> assets"
+                         aria-valuemin="0" aria-valuemax="<?= max(1, $stats['total']) ?>"
+                         aria-valuenow="<?= $metricCount ?>"
+                         aria-valuetext="<?= formatNumber($metricCount) ?> of <?= formatNumber($stats['total']) ?> assets">
+                        <span class="inventory-health-fill inventory-health-fill--<?= $metric['tone'] ?>" style="width:<?= $metricPercent ?>%"></span>
                     </div>
                 </div>
-
+                <?php endforeach; ?>
             </div>
         </div>
 
         <!-- QUICK ACTIONS -->
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">⚡ Quick Actions</h2>
+                <h2 class="card-title"><?= appIcon('zap') ?> Quick Actions</h2>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px;">
                 <a href="<?= APP_ROOT ?>/admin/transactions.php?action=checkout" class="btn btn-primary btn-sm" style="text-align: center; text-decoration: none;">
-                    📤 Check Out Item
+                    <?= appIcon('upload') ?> Check Out Item
                 </a>
                 <a href="<?= APP_ROOT ?>/admin/transactions.php?action=checkin" class="btn btn-success btn-sm" style="text-align: center; text-decoration: none;">
-                    ↩ Check In Item
+                    <?= appIcon('arrow-left-right') ?> Check In Item
                 </a>
                 <a href="<?= APP_ROOT ?>/admin/assets.php" class="btn btn-ghost btn-sm" style="text-align: center; text-decoration: none;">
-                    📚 View Assets
+                    <?= appIcon('package') ?> View Assets
                 </a>
                 <a href="<?= APP_ROOT ?>/admin/kits.php" class="btn btn-ghost btn-sm" style="text-align: center; text-decoration: none;">
-                    🎒 Manage Kits
+                    <?= appIcon('backpack') ?> Manage Kits
                 </a>
                 <a href="<?= APP_ROOT ?>/admin/users.php" class="btn btn-ghost btn-sm" style="text-align: center; text-decoration: none;">
-                    👥 Borrowers
+                    <?= appIcon('users') ?> Borrowers
                 </a>
             </div>
         </div>
@@ -398,6 +501,24 @@ include __DIR__ . '/partials/header.php';
 </div>
 
 <style>
+.overdue-borrowers-card { margin-bottom:24px; background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--color-danger-text); }
+.overdue-borrowers-card .card-header { border-bottom:1px solid var(--border); }
+.overdue-borrowers-list { max-height:400px; overflow-y:auto; }
+.overdue-borrower-row { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:flex-start; }
+.overdue-borrower-row:last-child { border-bottom:0; }
+.overdue-borrower-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; font-size:11px; color:var(--text-muted); }
+.overdue-pill { display:inline-flex; padding:3px 8px; border-radius:999px; background:var(--color-danger-bg); color:var(--color-danger-text); font-weight:700; white-space:nowrap; }
+.no-phone-label { display:inline-block; margin-right:6px; color:var(--text-muted); font-size:11px; }
+.queue-overdue-reminder { display:inline-block; margin-left:6px; }
+.inventory-health-list { display:flex; flex-direction:column; gap:16px; padding:16px; }
+.inventory-health-label { display:flex; justify-content:space-between; gap:10px; margin-bottom:6px; font-size:12px; }
+.inventory-health-label span { color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.inventory-health-track { height:8px; overflow:hidden; border-radius:999px; background:var(--border); }
+.inventory-health-fill { display:block; height:100%; border-radius:inherit; }
+.inventory-health-fill--success { background:var(--color-success); }
+.inventory-health-fill--info { background:var(--color-info); }
+.inventory-health-fill--warning { background:var(--color-warning); }
+.inventory-health-fill--danger { background:var(--color-danger-text); }
 .kit-dash-row { background: rgba(26,58,107,.025); }
 .kit-dash-row:hover td { background: rgba(26,58,107,.05) !important; }
 [data-theme="dark"] .kit-dash-row { background: rgba(96,165,250,.03); }
@@ -416,8 +537,8 @@ include __DIR__ . '/partials/header.php';
     transition:all .15s; padding:0;
 }
 .expand-btn:hover { border-color:#1a3a6b; background:rgba(26,58,107,.07); }
-.expand-arrow { font-size:9px; color:var(--text-muted); transition:transform .2s; display:inline-block; }
-.expand-btn.open .expand-arrow { transform:rotate(90deg); color:#1a3a6b; }
+.expand-arrow { width:14px; height:14px; color:var(--text-muted); transition:transform .2s; display:inline-flex; transform:rotate(-90deg); }
+.expand-btn.open .expand-arrow { transform:none; color:#1a3a6b; }
 [data-theme="dark"] .expand-btn.open .expand-arrow { color:#60a5fa; }
 </style>
 <script>

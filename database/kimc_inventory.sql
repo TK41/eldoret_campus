@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS assets (
   name            VARCHAR(200) NOT NULL,
   asset_type      ENUM('equipment','book') NOT NULL,
   kit_id          INT UNSIGNED NULL,            -- belongs to a kit (optional)
-  status          ENUM('available','checked_out','reserved','maintenance','retired')
+  status          ENUM('available','checked_out','reserved','maintenance','retired','missing')
                   NOT NULL DEFAULT 'available',
   condition_rating ENUM('excellent','good','fair','damaged') NOT NULL DEFAULT 'good',
   barcode         VARCHAR(80),
@@ -136,6 +136,25 @@ CREATE TABLE IF NOT EXISTS assets (
 -- TABLE: kit_components
 -- Links individual assets to their parent kit
 -- ============================================================
+CREATE TABLE IF NOT EXISTS inventory_components (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  inventory_id  INT UNSIGNED NOT NULL,
+  component_name VARCHAR(150) NOT NULL,
+  component_code VARCHAR(80) NULL,
+  serial_number VARCHAR(120) NULL,
+  `condition`   ENUM('excellent','good','fair','damaged') NOT NULL DEFAULT 'good',
+  status        ENUM('active','inactive','missing','damaged') NOT NULL DEFAULT 'active',
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_component_code (component_code),
+  KEY idx_inventory (inventory_id),
+  FOREIGN KEY (inventory_id) REFERENCES assets(asset_id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- TABLE: kit_components
+-- Links individual assets to their parent kit
+-- ============================================================
 CREATE TABLE IF NOT EXISTS kit_components (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   kit_id      INT UNSIGNED NOT NULL,
@@ -144,6 +163,67 @@ CREATE TABLE IF NOT EXISTS kit_components (
   UNIQUE KEY uq_kit_asset (kit_id, asset_id),
   FOREIGN KEY (kit_id)   REFERENCES kits(kit_id)   ON DELETE CASCADE,
   FOREIGN KEY (asset_id) REFERENCES assets(asset_id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- TABLES: reservations and their item-level allocation snapshot
+-- ============================================================
+CREATE TABLE IF NOT EXISTS reservations (
+  reservation_id      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  booking_reference   VARCHAR(32) NOT NULL UNIQUE,
+  access_token_hash   CHAR(64) NOT NULL,
+  user_id             INT UNSIGNED NOT NULL,
+  reservation_type    ENUM('single','kit') NOT NULL,
+  asset_id            INT UNSIGNED NULL,
+  kit_id              INT UNSIGNED NULL,
+  requested_start     DATETIME NOT NULL,
+  requested_end       DATETIME NOT NULL,
+  purpose             VARCHAR(500) NOT NULL,
+  status              ENUM('pending','approved','rejected','cancelled','expired','issued','returned')
+                      NOT NULL DEFAULT 'pending',
+  rejection_reason    VARCHAR(500) NULL,
+  submitted_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decision_at         DATETIME NULL,
+  decision_by         INT UNSIGNED NULL,
+  issued_at           DATETIME NULL,
+  issued_by           INT UNSIGNED NULL,
+  cancelled_at        DATETIME NULL,
+  returned_at         DATETIME NULL,
+  INDEX idx_reservations_status_dates (status, requested_start, requested_end),
+  INDEX idx_reservations_user_date (user_id, submitted_at),
+  CONSTRAINT fk_reservation_user FOREIGN KEY (user_id) REFERENCES users(user_id),
+  CONSTRAINT fk_reservation_asset FOREIGN KEY (asset_id) REFERENCES assets(asset_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_reservation_kit FOREIGN KEY (kit_id) REFERENCES kits(kit_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_reservation_decider FOREIGN KEY (decision_by) REFERENCES admin_users(admin_id) ON DELETE SET NULL,
+  CONSTRAINT fk_reservation_issuer FOREIGN KEY (issued_by) REFERENCES admin_users(admin_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS reservation_items (
+  reservation_item_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  reservation_id      INT UNSIGNED NOT NULL,
+  asset_id            INT UNSIGNED NOT NULL,
+  asset_code_snapshot VARCHAR(30) NOT NULL,
+  asset_name_snapshot VARCHAR(200) NOT NULL,
+  UNIQUE KEY uq_reservation_asset (reservation_id, asset_id),
+  INDEX idx_reservation_item_asset (asset_id),
+  CONSTRAINT fk_reservation_item_reservation
+    FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id) ON DELETE CASCADE,
+  CONSTRAINT fk_reservation_item_asset
+    FOREIGN KEY (asset_id) REFERENCES assets(asset_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS reservation_events (
+  event_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  reservation_id INT UNSIGNED NOT NULL,
+  event_type     VARCHAR(32) NOT NULL,
+  staff_id       INT UNSIGNED NULL,
+  detail         VARCHAR(500) NULL,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_reservation_events (reservation_id, created_at),
+  CONSTRAINT fk_reservation_event_reservation
+    FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id) ON DELETE CASCADE,
+  CONSTRAINT fk_reservation_event_staff
+    FOREIGN KEY (staff_id) REFERENCES admin_users(admin_id) ON DELETE SET NULL
 );
 
 -- ============================================================
@@ -158,8 +238,12 @@ CREATE TABLE IF NOT EXISTS transactions (
   checkout_at     DATETIME NOT NULL,
   due_at          DATETIME NOT NULL,
   returned_at     DATETIME NULL,
+  returned_by     INT UNSIGNED NULL,
+  reservation_id  INT UNSIGNED NULL,
+  kit_group_id    VARCHAR(36) NULL,
+  is_kit_txn      TINYINT(1) NOT NULL DEFAULT 0,
   condition_out   ENUM('excellent','good','fair','damaged') DEFAULT 'good',
-  condition_in    ENUM('excellent','good','fair','damaged') NULL,
+  condition_in    ENUM('excellent','good','fair','damaged','missing') NULL,
   condition_note  TEXT,                          -- damage log field
   fine_amount     DECIMAL(8,2) NOT NULL DEFAULT 0.00,
   fine_paid       BOOLEAN NOT NULL DEFAULT FALSE,
@@ -167,11 +251,18 @@ CREATE TABLE IF NOT EXISTS transactions (
   FOREIGN KEY (asset_id)  REFERENCES assets(asset_id),
   FOREIGN KEY (user_id)   REFERENCES users(user_id),
   FOREIGN KEY (staff_id)  REFERENCES admin_users(admin_id),
+  FOREIGN KEY (returned_by) REFERENCES admin_users(admin_id) ON DELETE SET NULL,
+  FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id) ON DELETE SET NULL,
   INDEX idx_user (user_id),
   INDEX idx_asset (asset_id),
   INDEX idx_due (due_at),
-  INDEX idx_returned (returned_at)
+  INDEX idx_returned (returned_at),
+  INDEX idx_txn_filters (returned_at, due_at, user_id, checkout_at),
+  INDEX idx_kit_group (kit_group_id),
+  INDEX idx_txn_reservation (reservation_id)
 );
+
+CREATE INDEX idx_kit_components_asset ON kit_components (asset_id);
 
 -- ============================================================
 -- TABLE: notifications
@@ -194,6 +285,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (txn_id)  REFERENCES transactions(txn_id) ON DELETE SET NULL,
   INDEX idx_pending (status, scheduled_at)
 );
+
+-- Admin read state is separate from the email/SMS delivery status.
+CREATE TABLE IF NOT EXISTS notification_reads (
+  admin_id  INT UNSIGNED NOT NULL,
+  notif_id  INT UNSIGNED NOT NULL,
+  read_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (admin_id, notif_id),
+  INDEX idx_notification_reads_notif (notif_id),
+  FOREIGN KEY (admin_id) REFERENCES admin_users(admin_id) ON DELETE CASCADE,
+  FOREIGN KEY (notif_id) REFERENCES notifications(notif_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 -- ============================================================
 -- TABLE: settings

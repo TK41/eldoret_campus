@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("UPDATE settings SET setting_value=? WHERE setting_key='smtp_pass'")
                ->execute([trim($_POST['smtp_pass'])]);
         }
-        setFlash('success', '✓ Settings saved successfully.');
+        setFlash('success', 'Settings saved successfully.');
         header('Location: ' . APP_ROOT . '/admin/settings.php');
         exit;
     }
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':can_kit'        => isset($_POST['can_kit']) ? 1 : 0,
             ':tier_id'        => $tid,
         ]);
-        setFlash('success', "✓ Tier $tid rules updated.");
+        setFlash('success', "Tier $tid rules updated.");
         header('Location: ' . APP_ROOT . '/admin/settings.php#tiers');
         exit;
     }
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $db->prepare("UPDATE admin_users SET password_hash=? WHERE admin_id=?")
                ->execute([password_hash($newPass, PASSWORD_BCRYPT), $admin['admin_id']]);
-            setFlash('success', '✓ Password changed successfully.');
+            setFlash('success', 'Password changed successfully.');
         }
         header('Location: ' . APP_ROOT . '/admin/settings.php#password');
         exit;
@@ -146,10 +146,10 @@ include __DIR__ . '/partials/header.php';
 
 <!-- Settings tabs -->
 <div class="settings-tabs">
-    <button class="stab active" onclick="switchTab('general', this)" data-tab="general">⚙️ General</button>
-    <button class="stab" onclick="switchTab('tiers', this)" data-tab="tiers">🔐 Tier Rules</button>
-    <button class="stab" onclick="switchTab('admins', this)" data-tab="admins">👤 Admin Accounts</button>
-    <button class="stab" onclick="switchTab('password', this)" data-tab="password">🔑 Change Password</button>
+    <button class="stab active" onclick="switchTab('general', this)" data-tab="general"><?= appIcon('settings') ?> General</button>
+    <button class="stab" onclick="switchTab('tiers', this)" data-tab="tiers"><?= appIcon('shield') ?> Tier Rules</button>
+    <button class="stab" onclick="switchTab('admins', this)" data-tab="admins"><?= appIcon('users') ?> Admin Accounts</button>
+    <button class="stab" onclick="switchTab('password', this)" data-tab="password"><?= appIcon('key') ?> Change Password</button>
 </div>
 
 <!-- ============================================================
@@ -160,7 +160,7 @@ include __DIR__ . '/partials/header.php';
         <input type="hidden" name="action" value="save_settings">
 
         <div class="card" style="margin-bottom:20px">
-            <div class="card-header"><h2 class="card-title">🏛 Institution</h2></div>
+            <div class="card-header"><h2 class="card-title"><?= appIcon('home') ?> Institution</h2></div>
             <div class="form-grid">
                 <div class="form-group full-width">
                     <label>Institution Name</label>
@@ -171,7 +171,7 @@ include __DIR__ . '/partials/header.php';
         </div>
 
         <div class="card" style="margin-bottom:20px">
-            <div class="card-header"><h2 class="card-title">💰 Fine Rates</h2></div>
+            <div class="card-header"><h2 class="card-title"><?= appIcon('wallet') ?> Fine Rates</h2></div>
             <div class="form-grid">
                 <div class="form-group">
                     <label>Equipment Fine (KES per hour)</label>
@@ -191,7 +191,7 @@ include __DIR__ . '/partials/header.php';
         </div>
 
         <div class="card" style="margin-bottom:20px">
-            <div class="card-header"><h2 class="card-title">🔔 Notification Windows</h2></div>
+            <div class="card-header"><h2 class="card-title"><?= appIcon('bell') ?> Notification Windows</h2></div>
             <div class="form-grid">
                 <div class="form-group">
                     <label>Equipment Alert (hours before due)</label>
@@ -218,7 +218,7 @@ include __DIR__ . '/partials/header.php';
 
         <div class="card" style="margin-bottom:20px">
             <div class="card-header">
-                <h2 class="card-title">📧 Email / SMTP Settings</h2>
+                <h2 class="card-title"><?= appIcon('mail') ?> Email / SMTP Settings</h2>
                 <span style="font-size:12px;color:var(--text-muted)">For automated email notifications</span>
             </div>
             <div class="form-grid">
@@ -250,7 +250,7 @@ include __DIR__ . '/partials/header.php';
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-lg">✓ Save All Settings</button>
+            <button type="submit" class="btn btn-primary btn-lg"><?= appIcon('check') ?> Save All Settings</button>
         </div>
     </form>
 </div>
@@ -332,18 +332,18 @@ include __DIR__ . '/partials/header.php';
 <div class="stab-content" id="content-admins">
     <!-- Current admin accounts table -->
     <div class="card" style="margin-bottom:20px">
-        <div class="card-header"><h2 class="card-title">👤 Admin Accounts</h2></div>
+        <div class="card-header"><h2 class="card-title"><?= appIcon('users') ?> Admin Accounts</h2></div>
         <div class="table-wrap">
             <table class="data-table">
                 <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Last Login</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
                     <?php foreach ($admins as $a): ?>
                         <tr>
-                            <td><strong><?= htmlspecialchars($a['full_name']) ?></strong></td>
+                            <td><strong><?= htmlspecialchars(formatPersonName($a['full_name'])) ?></strong></td>
                             <td class="mono"><?= htmlspecialchars($a['username']) ?></td>
                             <td><?= htmlspecialchars($a['email']) ?></td>
                             <td><span class="badge badge-<?= $a['role']==='superadmin'?'overdue':'available' ?>"><?= ucfirst($a['role']) ?></span></td>
-                            <td style="font-size:12px"><?= $a['last_login'] ? date('d M Y H:i', strtotime($a['last_login'])) : 'Never' ?></td>
+                            <td class="date-value" style="font-size:12px"><?= $a['last_login'] ? formatDate($a['last_login'], true) : 'Never' ?></td>
                             <td><span class="badge badge-<?= $a['is_active']?'available':'maintenance' ?>"><?= $a['is_active']?'Active':'Suspended'?></span></td>
                             <td>
                                 <?php if (isSuperAdmin() && $a['admin_id'] !== $admin['admin_id']): ?>
@@ -390,7 +390,7 @@ include __DIR__ . '/partials/header.php';
 ============================================================ -->
 <div class="stab-content" id="content-password">
     <div class="card" style="max-width:460px">
-        <div class="card-header"><h2 class="card-title">🔑 Change Your Password</h2></div>
+        <div class="card-header"><h2 class="card-title"><?= appIcon('key') ?> Change Your Password</h2></div>
         <form method="POST">
             <input type="hidden" name="action" value="change_password">
             <div class="card-body" style="display:flex;flex-direction:column;gap:16px">

@@ -160,15 +160,15 @@ include __DIR__ . '/partials/header.php';
 
 <div class="page-header no-print">
     <div>
-        <h1 class="page-title">🎓 Transcripts</h1>
+        <h1 class="page-title"><?= appIcon('graduation-cap') ?> Transcripts</h1>
         <p class="page-subtitle">Student academic result records</p>
     </div>
     <div style="display:flex;gap:8px">
         <?php if (!empty($transcripts)): ?>
-        <button onclick="window.print()" class="btn btn-primary">🖨 Print<?= count($transcripts) > 1 ? ' All ('.count($transcripts).')' : '' ?></button>
+        <button onclick="window.print()" class="btn btn-primary"><?= appIcon('printer') ?> Print<?= count($transcripts) > 1 ? ' All ('.count($transcripts).')' : '' ?></button>
         <?php endif; ?>
         <?php if ($sel_session): ?>
-        <a href="?session_id=<?= $sel_session ?>" class="btn btn-ghost">👥 All Students</a>
+        <a href="?session_id=<?= $sel_session ?>" class="btn btn-ghost"><?= appIcon('users') ?> All Students</a>
         <?php endif; ?>
     </div>
 </div>
@@ -191,11 +191,11 @@ include __DIR__ . '/partials/header.php';
     <div class="fg">
         <label>Student</label>
         <select onchange="window.location='?session_id=<?= $sel_session ?>&student_id='+this.value">
-            <option value="">All Students (<?= count($studentsWithResults) ?>)</option>
+            <option value="">All <?= pluralizeCount(count($studentsWithResults), 'student') ?></option>
             <?php foreach ($studentsWithResults as $st): ?>
             <option value="<?= htmlspecialchars($st['student_id']) ?>"
                     <?= $sel_student === $st['student_id'] ? 'selected' : '' ?>>
-                <?= htmlspecialchars($st['full_name']) ?> — <?= htmlspecialchars($st['student_id']) ?>
+                <?= htmlspecialchars(formatPersonName($st['full_name'])) ?> — <?= htmlspecialchars($st['student_id']) ?>
             </option>
             <?php endforeach; ?>
         </select>
@@ -205,16 +205,16 @@ include __DIR__ . '/partials/header.php';
 
 <?php if (!$sel_session): ?>
 <div class="card"><div style="padding:50px;text-align:center;color:var(--text-muted)">
-    <div style="font-size:40px;margin-bottom:12px">🎓</div>
+    <div style="font-size:40px;margin-bottom:12px"><?= appIcon('graduation-cap') ?></div>
     <p>Select an exam session to generate transcripts.</p>
 </div></div>
 
 <?php elseif (empty($transcripts)): ?>
 <div class="card"><div style="padding:50px;text-align:center;color:var(--text-muted)">
-    <div style="font-size:40px;margin-bottom:12px">📋</div>
+    <div style="font-size:40px;margin-bottom:12px"><?= appIcon('clipboard') ?></div>
     <p>No results found for this selection.</p>
     <a href="<?= APP_ROOT ?>/exams/enter_marks.php?session_id=<?= $sel_session ?>" class="btn btn-primary" style="margin-top:12px">
-        ✏️ Enter Marks First
+        <?= appIcon('pencil') ?> Enter Marks First
     </a>
 </div></div>
 
@@ -239,7 +239,7 @@ include __DIR__ . '/partials/header.php';
             <div style="font-size:15px;font-weight:700;color:#6ee7b7;letter-spacing:.5px">ACADEMIC TRANSCRIPT</div>
             <div><?= htmlspecialchars($t['session_name']) ?></div>
             <div>Academic Year: <?= htmlspecialchars($t['academic_year']) ?></div>
-            <div>Generated: <?= date('d M Y') ?></div>
+            <div>Generated: <span class="date-value"><?= formatDate('now') ?></span></div>
         </div>
     </div>
 
@@ -247,7 +247,7 @@ include __DIR__ . '/partials/header.php';
     <div class="transcript-student">
         <div class="ts-field">
             <span class="ts-label">Student Name</span>
-            <span class="ts-value"><?= htmlspecialchars($t['student_name']) ?></span>
+            <span class="ts-value"><?= htmlspecialchars(formatPersonName($t['student_name'])) ?></span>
         </div>
         <div class="ts-field">
             <span class="ts-label">Admission No.</span>
@@ -255,11 +255,11 @@ include __DIR__ . '/partials/header.php';
         </div>
         <div class="ts-field">
             <span class="ts-label">Programme</span>
-            <span class="ts-value"><?= htmlspecialchars($t['student_prog']) ?></span>
+            <span class="ts-value"><?= htmlspecialchars(formatTitleCase($t['student_prog'])) ?></span>
         </div>
         <div class="ts-field">
             <span class="ts-label">Group / Intake</span>
-            <span class="ts-value"><?= htmlspecialchars($t['group_name']) ?></span>
+            <span class="ts-value"><?= htmlspecialchars(formatTitleCase($t['group_name'])) ?></span>
         </div>
     </div>
 
@@ -281,9 +281,9 @@ include __DIR__ . '/partials/header.php';
         <tr>
             <td><code style="font-size:12px"><?= htmlspecialchars($row['unit_code']) ?></code></td>
             <td><?= htmlspecialchars($row['unit_name']) ?></td>
-            <td style="text-align:center;font-family:'Space Mono',monospace"><?= $row['ca_score']   ?? '—' ?></td>
-            <td style="text-align:center;font-family:'Space Mono',monospace"><?= $row['exam_score'] ?? '—' ?></td>
-            <td style="text-align:center;font-family:'Space Mono',monospace;font-weight:700;font-size:14px"><?= $row['total'] ?? '—' ?></td>
+            <td style="text-align:center"><?= $row['ca_score'] !== null ? formatMark($row['ca_score']) : '—' ?></td>
+            <td style="text-align:center"><?= $row['exam_score'] !== null ? formatMark($row['exam_score']) : '—' ?></td>
+            <td style="text-align:center;font-weight:700;font-size:14px"><?= $row['total'] !== null ? formatMark($row['total']) : '—' ?></td>
             <td style="text-align:center"><span class="grade-pill grade-<?= $row['grade'] ?>"><?= $row['grade'] ?: '—' ?></span></td>
             <td style="font-size:12px;color:var(--text-muted)">
                 <?php
@@ -319,11 +319,11 @@ include __DIR__ . '/partials/header.php';
                 <div class="gs-lbl">Failed</div>
             </div>
             <div class="gs-item">
-                <div class="gs-val"><?= $t['avg'] ?></div>
+                <div class="gs-val"><?= formatMark($t['avg']) ?></div>
                 <div class="gs-lbl">Average</div>
             </div>
             <div class="gs-item">
-                <div class="gs-val"><?= $passRate ?>%</div>
+                <div class="gs-val"><?= formatPercentage($passRate) ?></div>
                 <div class="gs-lbl">Pass Rate</div>
             </div>
         </div>

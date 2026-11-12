@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $date_paid, $notes ?: null,
             $_SESSION['admin_id']
         ]);
-        setFlash('success', 'Payment of KES ' . number_format($amount) . ' posted successfully.');
+        setFlash('success', 'Payment of ' . formatCurrency($amount) . ' posted successfully.');
         header('Location: ' . APP_ROOT . '/fees/student.php?id=' . $fee_student_id);
         exit;
     }
@@ -71,10 +71,10 @@ include __DIR__ . '/partials/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">➕ Post Payment</h1>
+        <h1 class="page-title"><?= appIcon('plus') ?> Post Payment</h1>
         <p class="page-subtitle">Record a new fee payment for a student</p>
     </div>
-    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost">← Back to Students</a>
+    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Back to Students</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -159,7 +159,7 @@ include __DIR__ . '/partials/header.php';
             </div>
 
             <div style="display:flex;gap:10px;margin-top:8px">
-                <button type="submit" class="btn btn-primary" style="flex:1">✓ Post Payment</button>
+                <button type="submit" class="btn btn-primary" style="flex:1"><?= appIcon('check') ?> Post Payment</button>
                 <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost">Cancel</a>
             </div>
         </form>
@@ -170,13 +170,14 @@ include __DIR__ . '/partials/header.php';
 // Student data injected from PHP
 const feeStudents = <?= json_encode(array_map(fn($s) => [
     'id'       => $s['fee_student_id'],
-    'name'     => $s['full_name'],
+    'name'     => formatPersonName($s['full_name']),
     'adm'      => $s['student_id'],
-    'group'    => $s['group_name'],
+    'group'    => formatTitleCase($s['group_name']),
     'total'    => floatval($s['total_fees']),
     'paid'     => floatval($s['paid']),
     'balance'  => floatval($s['total_fees']) - floatval($s['paid']),
 ], $allStudents)) ?>;
+const feeNumberFormatter = new Intl.NumberFormat('en-KE', { maximumFractionDigits: 0 });
 
 // Pre-fill if student_id passed in URL
 const preselect = <?= $preselect ?>;
@@ -207,7 +208,7 @@ function searchStudent(q) {
                 <div style="font-weight:600;font-size:13px">${s.name}</div>
                 <div style="font-size:11px;color:var(--text-muted)">${s.adm} · ${s.group}</div>
                 <div style="font-size:11px;margin-top:2px;color:${s.balance > 0 ? '#dc2626' : '#16a34a'}">
-                    Balance: KES ${s.balance.toLocaleString()} of KES ${s.total.toLocaleString()}
+                    Balance: KES ${feeNumberFormatter.format(s.balance)} of KES ${feeNumberFormatter.format(s.total)}
                 </div>
             </div>`
         ).join('') + '</div>';
@@ -222,10 +223,10 @@ function selectStudent(s) {
     const pct = s.total > 0 ? Math.min(100, (s.paid / s.total) * 100) : 0;
     document.getElementById('prev-name').textContent = s.name + ' — ' + s.adm;
     document.getElementById('prev-bal').innerHTML =
-        '<strong style="color:#16a34a">Paid: KES ' + s.paid.toLocaleString() + '</strong>' +
+        '<strong style="color:#16a34a">Paid: KES ' + feeNumberFormatter.format(s.paid) + '</strong>' +
         ' &nbsp;·&nbsp; ' +
-        '<strong style="color:#dc2626">Balance: KES ' + Math.max(0,s.balance).toLocaleString() + '</strong>' +
-        ' &nbsp;·&nbsp; Total: KES ' + s.total.toLocaleString();
+        '<strong style="color:#dc2626">Balance: KES ' + feeNumberFormatter.format(Math.max(0,s.balance)) + '</strong>' +
+        ' &nbsp;·&nbsp; Total: KES ' + feeNumberFormatter.format(s.total);
     document.getElementById('prev-fill').style.width = pct + '%';
     document.getElementById('student-preview').style.display = 'block';
 }

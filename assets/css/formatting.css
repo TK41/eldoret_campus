@@ -1,0 +1,56 @@
+:root {
+    --font-family-sans: 'Plus Jakarta Sans', sans-serif;
+    --type-page-title: 1.75rem;
+    --type-section-title: 1.125rem;
+    --type-body: 1rem;
+    --type-caption: .875rem;
+}
+
+body {
+    font-family: var(--font-family-sans) !important;
+    font-size: var(--type-body);
+}
+
+body :not(svg):not(path) {
+    font-family: var(--font-family-sans) !important;
+}
+
+.page-title { font-size: var(--type-page-title); }
+.card-title,
+.section-title { font-size: var(--type-section-title); }
+.page-subtitle,
+.field-hint,
+.caption,
+.stat-sub { font-size: var(--type-caption); }
+
+code,
+.mono,
+.stat-value,
+.data-table th,
+.data-table td,
+.grade-pill,
+.score-input,
+.live-total,
+[style*="Space Mono"] {
+    font-family: var(--font-family-sans) !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.date-value,
+.date-nowrap {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-value,
+.data-table td,
+code,
+.mono {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+    .page-title { font-size: 1.375rem; }
+    .card-title,
+    .section-title { font-size: 1rem; }
+}

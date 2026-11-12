@@ -236,7 +236,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
 <body>
 <header class="topbar">
   <div class="topbar-left">
-    <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle navigation"><?= appIcon('menu') ?></button>
     <a href="<?= APP_ROOT ?>/portal.php" class="topbar-brand">
       <img src="<?= APP_ROOT ?>/assets/img/logo.png" alt="KIMC" style="height:36px;width:auto;object-fit:contain">
       <div class="brand-text">
@@ -246,19 +246,19 @@ $admin=getCurrentAdmin(); $flash=getFlash();
     </a>
   </div>
   <div class="topbar-right">
-    <button class="icon-btn theme-toggle-btn" onclick="toggleTheme()"><span id="theme-icon">🌙</span></button>
-    <a href="<?= APP_ROOT ?>/portal.php" class="icon-btn" style="font-size:18px;text-decoration:none" title="Portal">🏠</a>
+    <button class="icon-btn theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle theme"><span id="theme-icon"><span class="theme-icon-for-light"><?= appIcon('moon') ?></span><span class="theme-icon-for-dark"><?= appIcon('sun') ?></span></span></button>
+    <a href="<?= APP_ROOT ?>/portal.php" class="icon-btn" style="font-size:18px;text-decoration:none" title="Portal" aria-label="Portal"><?= appIcon('home') ?></a>
     <div class="user-menu" onclick="toggleUserMenu()">
       <div class="avatar" style="background:linear-gradient(135deg,#3730a3,#4f46e5)"><?= strtoupper(substr($admin['full_name'],0,1)) ?></div>
       <div class="user-info hide-mobile">
         <span class="user-name" style="color:#c7d2fe"><strong><?= htmlspecialchars($admin['first_name']?:explode(' ',$admin['full_name'])[0]) ?></strong></span>
         <span class="user-role" style="color:rgba(255,255,255,.45)"><?= htmlspecialchars($_SESSION['role_label']??'Admin') ?></span>
       </div>
-      <span class="dropdown-arrow" style="color:rgba(255,255,255,.4)">▾</span>
+      <span class="dropdown-arrow" style="color:rgba(255,255,255,.4)"><?= appIcon('chevron-down') ?></span>
       <div class="dropdown-menu" id="user-dropdown">
-        <a href="<?= APP_ROOT ?>/portal.php" class="dropdown-item">🏠 Portal</a>
+        <a href="<?= APP_ROOT ?>/portal.php" class="dropdown-item"><?= appIcon('home') ?> Portal</a>
         <div class="dropdown-divider"></div>
-        <a href="<?= APP_ROOT ?>/auth/logout.php" class="dropdown-item danger">🚪 Sign Out</a>
+        <a href="<?= APP_ROOT ?>/auth/logout.php" class="dropdown-item danger"><?= appIcon('log-out') ?> Sign Out</a>
       </div>
     </div>
   </div>
@@ -267,13 +267,13 @@ $admin=getCurrentAdmin(); $flash=getFlash();
 <aside class="sidebar" id="sidebar" style="background:linear-gradient(180deg,#1e1b4b 0%,#312e81 100%)">
   <nav class="sidebar-nav">
     <div class="nav-section-label" style="color:rgba(255,255,255,.35)">Management</div>
-    <a href="<?= APP_ROOT ?>/admin/manage_admins.php" class="nav-item" style="background:rgba(79,70,229,.3);color:#c7d2fe;border-left:3px solid #818cf8"><span class="nav-icon">👥</span> Users &amp; Roles</a>
+    <a href="<?= APP_ROOT ?>/admin/manage_admins.php" class="nav-item" style="background:rgba(79,70,229,.3);color:#c7d2fe;border-left:3px solid #818cf8"><span class="nav-icon"><?= appIcon('users') ?></span> Users &amp; Roles</a>
     <div class="nav-section-label" style="color:rgba(255,255,255,.35)">Portals</div>
-    <a href="<?= APP_ROOT ?>/portal.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon">🏠</span> Portal</a>
-    <?php if(canAccess('inventory')): ?><a href="<?= APP_ROOT ?>/admin/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon">📦</span> Inventory</a><?php endif; ?>
-    <?php if(canAccess('fees')): ?><a href="<?= APP_ROOT ?>/fees/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon">💰</span> Fees</a><?php endif; ?>
-    <?php if(canAccess('exams')): ?><a href="<?= APP_ROOT ?>/exams/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon">🎓</span> Exams</a><?php endif; ?>
-    <?php if(canAccess('admissions')): ?><a href="<?= APP_ROOT ?>/admissions/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon">📋</span> Admissions</a><?php endif; ?>
+    <a href="<?= APP_ROOT ?>/portal.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon"><?= appIcon('home') ?></span> Portal</a>
+    <?php if(canAccess('inventory')): ?><a href="<?= APP_ROOT ?>/admin/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon"><?= appIcon('package') ?></span> Inventory</a><?php endif; ?>
+    <?php if(canAccess('fees')): ?><a href="<?= APP_ROOT ?>/fees/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon"><?= appIcon('wallet') ?></span> Fees</a><?php endif; ?>
+    <?php if(canAccess('exams')): ?><a href="<?= APP_ROOT ?>/exams/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon"><?= appIcon('graduation-cap') ?></span> Exams</a><?php endif; ?>
+    <?php if(canAccess('admissions')): ?><a href="<?= APP_ROOT ?>/admissions/dashboard.php" class="nav-item" style="color:rgba(255,255,255,.65)"><span class="nav-icon"><?= appIcon('clipboard') ?></span> Admissions</a><?php endif; ?>
   </nav>
   <div class="sidebar-footer" style="border-top:1px solid rgba(255,255,255,.08)">
     <div style="font-size:11px;color:rgba(255,255,255,.35)">Signed in as</div>
@@ -286,30 +286,30 @@ $admin=getCurrentAdmin(); $flash=getFlash();
 <?php if($flash): ?>
 <div class="alert alert-<?= $flash['type'] ?>" style="margin-bottom:16px">
   <?= htmlspecialchars($flash['message']) ?>
-  <button onclick="this.parentElement.remove()" class="alert-close">×</button>
+  <button onclick="this.parentElement.remove()" class="alert-close" aria-label="Dismiss message"><?= appIcon('x') ?></button>
 </div>
 <?php endif; ?>
 
 <div class="page-header">
   <div>
-    <h1 class="page-title">👥 Users &amp; Roles</h1>
+    <h1 class="page-title"><?= appIcon('users') ?> Users &amp; Roles</h1>
     <div class="schips">
-      <span class="sc sc-b">👤 <?= $total ?> user<?= $total!==1?'s':'' ?></span>
+      <span class="sc sc-b"><?= appIcon('users') ?> <?= pluralizeCount($total, 'user') ?></span>
       <span class="sc sc-g"><span class="pip on"></span><?= $onlineCnt ?> online</span>
       <span class="sc sc-gr"><span class="pip off"></span><?= $total-$onlineCnt ?> offline</span>
     </div>
   </div>
-  <button class="btn btn-primary" onclick="openM('m-new')">➕ New User</button>
+  <button class="btn btn-primary" onclick="openM('m-new')"><?= appIcon('plus') ?> New User</button>
 </div>
 
 <div class="pgtabs">
-  <button class="pgtab active" onclick="swTab('users',this)">👤 Users</button>
-  <button class="pgtab" onclick="swTab('matrix',this)">🔑 Permissions</button>
+  <button class="pgtab active" onclick="swTab('users',this)"><?= appIcon('users') ?> Users</button>
+  <button class="pgtab" onclick="swTab('matrix',this)"><?= appIcon('key') ?> Permissions</button>
 </div>
 
 <!-- USERS TAB -->
 <div class="tpane active" id="tab-users">
-  <input type="text" placeholder="🔍 Search name, username or email…" oninput="filterU(this.value)"
+  <input type="text" placeholder="Search name, username or email…" oninput="filterU(this.value)"
     style="width:100%;max-width:340px;padding:9px 14px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text-primary);font-family:inherit;font-size:13px;margin-bottom:14px">
   <div class="card"><div class="card-body" style="padding:0" id="ulist">
   <?php foreach($admins as $u):
@@ -331,7 +331,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
   <div class="urow" data-admin-id="<?= $u['admin_id'] ?>" data-q="<?= htmlspecialchars(strtolower($u['full_name'].' '.$u['username'].' '.($u['email']??''))) ?>">
     <div class="uav"><?= $ini ?><span class="sd <?= $on?'on':'off' ?>"></span></div>
     <div class="uinfo">
-      <div class="uname"><?= htmlspecialchars($u['full_name']) ?></div>
+      <div class="uname"><?= htmlspecialchars(formatPersonName($u['full_name'])) ?></div>
       <div class="umeta"><code style="font-size:11px"><?= htmlspecialchars($u['username']) ?></code><?php if($u['email']): ?> &middot; <?= htmlspecialchars($u['email']) ?><?php endif; ?></div>
       <div class="ubadges">
         <!-- Online/offline presence -->
@@ -357,7 +357,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
     </select>
     <!-- Actions -->
     <div class="uright">
-      <button class="btn btn-ghost btn-sm" onclick="openReset(<?= $u['admin_id'] ?>,'<?= htmlspecialchars(addslashes($u['full_name'])) ?>')" title="Reset password">🔑</button>
+      <button class="btn btn-ghost btn-sm" onclick="openReset(<?= $u['admin_id'] ?>,'<?= htmlspecialchars(addslashes($u['full_name'])) ?>')" title="Reset password" aria-label="Reset password"><?= appIcon('key') ?></button>
       <?php if(!$you): ?>
       <form method="POST" style="display:inline">
         <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
@@ -366,14 +366,14 @@ $admin=getCurrentAdmin(); $flash=getFlash();
         <button type="submit" class="btn btn-ghost btn-sm" style="color:<?= $u['is_active']?'#b45309':'#16a34a' ?>"
                 title="<?= $u['is_active']?'Disable account':'Enable account' ?>"
                 onclick="return confirm('<?= $u['is_active']?'Disable':'Enable' ?> <?= htmlspecialchars(addslashes($u['full_name'])) ?>?')">
-          <?= $u['is_active']?'🔒 Disable':'🔓 Enable' ?>
+          <?= appIcon($u['is_active'] ? 'lock' : 'unlock') ?> <?= $u['is_active'] ? 'Disable' : 'Enable' ?>
         </button>
       </form>
       <form method="POST" style="display:inline">
         <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
         <input type="hidden" name="action" value="delete_user">
         <input type="hidden" name="admin_id" value="<?= $u['admin_id'] ?>">
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete <?= htmlspecialchars(addslashes($u['full_name'])) ?> permanently?')">🗑</button>
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete <?= htmlspecialchars(addslashes($u['full_name'])) ?> permanently?')" aria-label="Delete user"><?= appIcon('trash') ?></button>
       </form>
       <?php endif; ?>
     </div>
@@ -386,7 +386,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
 <div class="tpane" id="tab-matrix">
   <div class="card">
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)">
-      Read-only — what each role can do. ✓ = permitted &nbsp;·&nbsp; · = not permitted
+      Read-only — what each role can do. <?= appIcon('check') ?> = permitted &nbsp;·&nbsp; <?= appIcon('x') ?> = not permitted
     </div>
     <div style="overflow-x:auto"><table class="pm">
       <thead><tr>
@@ -401,7 +401,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
       <tr>
         <td style="padding-left:22px;font-size:12px"><?= htmlspecialchars($a['label']) ?></td>
         <?php foreach($roles as $r): $has=$r['name']==='superadmin'||($permIndex[$r['role_id']][$a['module']][$a['action']]??false); ?>
-        <td style="text-align:center"><span class="<?= $has?'pm-y':'pm-n' ?>"><?= $has?'✓':'·' ?></span></td>
+        <td style="text-align:center"><span class="<?= $has?'pm-y':'pm-n' ?>"><?= appIcon($has ? 'check' : 'x') ?></span></td>
         <?php endforeach; ?>
       </tr>
       <?php endforeach; ?>
@@ -415,7 +415,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
 <!-- New User Modal -->
 <div class="mbg" id="m-new" onclick="if(event.target===this)closeM('m-new')">
   <div class="mbox">
-    <div class="mtit">➕ Create Admin User</div>
+    <div class="mtit"><?= appIcon('plus') ?> Create Admin User</div>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="action" value="create_user">
@@ -443,7 +443,7 @@ $admin=getCurrentAdmin(); $flash=getFlash();
 <!-- Reset Password Modal -->
 <div class="mbg" id="m-reset" onclick="if(event.target===this)closeM('m-reset')">
   <div class="mbox" style="max-width:380px">
-    <div class="mtit">🔑 Reset Password</div>
+    <div class="mtit"><?= appIcon('key') ?> Reset Password</div>
     <p id="rfor" style="font-size:13px;color:var(--text-muted);margin-bottom:18px"></p>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">

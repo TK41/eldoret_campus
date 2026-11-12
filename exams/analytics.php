@@ -82,15 +82,15 @@ include __DIR__ . '/partials/header.php';
 
 function gradeColor(string $g): string {
     return match($g) {
-        'A' => '#15803d', 'B' => '#1d4ed8',
-        'C' => '#b45309', 'D' => '#c2410c',
+        'A', 'B' => '#15803d',
+        'C', 'D' => '#b45309',
         default => '#dc2626'
     };
 }
 function gradeBg(string $g): string {
     return match($g) {
-        'A' => 'rgba(22,163,74,.12)', 'B' => 'rgba(37,99,235,.12)',
-        'C' => 'rgba(217,119,6,.12)', 'D' => 'rgba(234,88,12,.12)',
+        'A', 'B' => 'rgba(22,163,74,.12)',
+        'C', 'D' => 'rgba(217,119,6,.12)',
         default => 'rgba(220,38,38,.1)'
     };
 }
@@ -118,11 +118,11 @@ function gradeBg(string $g): string {
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">📈 Analytics</h1>
+        <h1 class="page-title"><?= appIcon('chart') ?> Analytics</h1>
         <p class="page-subtitle">Class rankings &amp; performance insights</p>
     </div>
     <?php if ($sel_session): ?>
-    <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sel_session ?>" class="btn btn-ghost">🎓 Transcripts</a>
+    <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sel_session ?>" class="btn btn-ghost"><?= appIcon('graduation-cap') ?> Transcripts</a>
     <?php endif; ?>
 </div>
 
@@ -143,15 +143,15 @@ function gradeBg(string $g): string {
 
 <?php if (!$sel_session): ?>
 <div class="card"><div style="padding:50px;text-align:center;color:var(--text-muted)">
-    <div style="font-size:40px;margin-bottom:12px">📈</div>
+    <div style="font-size:40px;margin-bottom:12px"><?= appIcon('chart') ?></div>
     <p>Select an exam session to view analytics.</p>
 </div></div>
 
 <?php elseif (empty($rankings)): ?>
 <div class="card"><div style="padding:50px;text-align:center;color:var(--text-muted)">
-    <div style="font-size:40px;margin-bottom:12px">📊</div>
+    <div style="font-size:40px;margin-bottom:12px"><?= appIcon('chart') ?></div>
     <p>No results entered for this session yet.</p>
-    <a href="<?= APP_ROOT ?>/exams/enter_marks.php?session_id=<?= $sel_session ?>" class="btn btn-primary" style="margin-top:12px">✏️ Enter Marks</a>
+    <a href="<?= APP_ROOT ?>/exams/enter_marks.php?session_id=<?= $sel_session ?>" class="btn btn-primary" style="margin-top:12px"><?= appIcon('pencil') ?> Enter Marks</a>
 </div></div>
 
 <?php else: ?>
@@ -159,7 +159,7 @@ function gradeBg(string $g): string {
 <!-- ── Grade Distribution ── -->
 <?php $total = array_sum(array_column($gradeDist, 'cnt')); ?>
 <div class="card" style="margin-bottom:20px">
-    <div class="card-header"><span class="card-title">🎯 Grade Distribution — <?= htmlspecialchars($sessionInfo['name']) ?></span></div>
+    <div class="card-header"><span class="card-title"><?= appIcon('chart') ?> Grade Distribution — <?= htmlspecialchars($sessionInfo['name']) ?></span></div>
     <div class="card-body">
         <div class="grade-donut-grid">
         <?php
@@ -193,7 +193,7 @@ function gradeBg(string $g): string {
         <?php endforeach; ?>
         </div>
         <div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:6px">
-            <?= $total ?> total entries · Pass rate: <strong><?= $total > 0 ? round((($gradeMap['A']??0)+($gradeMap['B']??0)+($gradeMap['C']??0)+($gradeMap['D']??0)) / $total * 100) : 0 ?>%</strong>
+            <?= pluralizeCount($total, 'entry') ?> total · Pass rate: <strong><?= formatPercentage($total > 0 ? ((($gradeMap['A']??0)+($gradeMap['B']??0)+($gradeMap['C']??0)+($gradeMap['D']??0)) / $total * 100) : 0) ?></strong>
         </div>
     </div>
 </div>
@@ -201,7 +201,7 @@ function gradeBg(string $g): string {
 <!-- ── Unit Performance ── -->
 <?php if (!empty($unitPerf)): ?>
 <div class="card" style="margin-bottom:20px">
-    <div class="card-header"><span class="card-title">📚 Unit Performance (Average Score)</span></div>
+    <div class="card-header"><span class="card-title"><?= appIcon('book-open') ?> Unit Performance (Average Score)</span></div>
     <div class="card-body">
     <?php $maxAvg = max(array_column($unitPerf, 'avg_score')); ?>
     <?php foreach ($unitPerf as $up):
@@ -216,8 +216,8 @@ function gradeBg(string $g): string {
                 <?= $barPct > 15 ? htmlspecialchars($up['unit_name']) : '' ?>
             </div>
         </div>
-        <div class="unit-bar-score"><?= $up['avg_score'] ?></div>
-        <div style="font-size:11px;color:var(--text-muted);min-width:60px"><?= $passRate ?>% pass</div>
+        <div class="unit-bar-score"><?= formatMark($up['avg_score']) ?></div>
+        <div style="font-size:11px;color:var(--text-muted);min-width:60px"><?= formatPercentage($passRate) ?> pass</div>
     </div>
     <?php endforeach; ?>
     </div>
@@ -225,7 +225,7 @@ function gradeBg(string $g): string {
 
 <!-- Unit detail table -->
 <div class="card" style="margin-bottom:20px">
-    <div class="card-header"><span class="card-title">📊 Unit Breakdown</span></div>
+    <div class="card-header"><span class="card-title"><?= appIcon('chart') ?> Unit Breakdown</span></div>
     <div style="overflow-x:auto">
     <table class="data-table">
         <thead><tr>
@@ -243,10 +243,10 @@ function gradeBg(string $g): string {
                 <strong><?= htmlspecialchars($up['unit_code']) ?></strong>
                 <div style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($up['unit_name']) ?></div>
             </td>
-            <td style="font-family:'Space Mono',monospace"><?= $up['entries'] ?></td>
-            <td style="font-family:'Space Mono',monospace;font-weight:700"><?= $up['avg_score'] ?></td>
-            <td style="font-family:'Space Mono',monospace;color:#15803d"><?= $up['max_score'] ?></td>
-            <td style="font-family:'Space Mono',monospace;color:#dc2626"><?= $up['min_score'] ?></td>
+            <td><?= formatNumber($up['entries']) ?></td>
+            <td style="font-weight:700"><?= formatMark($up['avg_score']) ?></td>
+            <td style="color:#15803d"><?= formatMark($up['max_score']) ?></td>
+            <td style="color:#dc2626"><?= formatMark($up['min_score']) ?></td>
             <?php foreach (['grade_a','grade_b','grade_c','grade_d','grade_f'] as $gk): ?>
             <td style="text-align:center;font-family:'Space Mono',monospace"><?= $up[$gk] ?></td>
             <?php endforeach; ?>
@@ -255,7 +255,7 @@ function gradeBg(string $g): string {
                     <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
                         <div style="height:100%;width:<?= $pr ?>%;background:<?= $pr>=70?'#15803d':($pr>=50?'#d97706':'#dc2626') ?>;border-radius:3px"></div>
                     </div>
-                    <span style="font-size:12px;font-weight:700"><?= $pr ?>%</span>
+                    <span style="font-size:12px;font-weight:700"><?= formatPercentage($pr) ?></span>
                 </div>
             </td>
         </tr>
@@ -269,7 +269,7 @@ function gradeBg(string $g): string {
 <!-- ── Class Rankings ── -->
 <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-        <span class="card-title">🏆 Class Rankings — <?= count($rankings) ?> students</span>
+        <span class="card-title"><?= appIcon('trophy') ?> Class Rankings — <?= pluralizeCount(count($rankings), 'student') ?></span>
         <span style="font-size:12px;color:var(--text-muted)">Ranked by average score</span>
     </div>
     <div style="overflow-x:auto">
@@ -294,16 +294,16 @@ function gradeBg(string $g): string {
         <tr>
             <td style="text-align:center">
                 <?php if ($rank <= 3): ?>
-                    <span style="font-size:20px"><?= ['🥇','🥈','🥉'][$rank-1] ?></span>
+                    <span style="font-size:20px"><?= appIcon('trophy') ?> <?= $rank ?></span>
                 <?php else: ?>
                     <span class="rank-badge rank-n"><?= $rank ?></span>
                 <?php endif; ?>
             </td>
             <td>
-                <div style="font-weight:600"><?= htmlspecialchars($stu['full_name']) ?></div>
+                <div style="font-weight:600"><?= htmlspecialchars(formatPersonName($stu['full_name'])) ?></div>
                 <div style="font-size:11px;color:var(--text-muted);font-family:'Space Mono',monospace"><?= htmlspecialchars($stu['student_id']) ?></div>
             </td>
-            <td style="font-size:12px;color:var(--text-muted)"><?= htmlspecialchars($stu['group_name'] ?? '—') ?></td>
+            <td style="font-size:12px;color:var(--text-muted)"><?= htmlspecialchars(formatTitleCase($stu['group_name'] ?? '—')) ?></td>
             <td style="text-align:center;font-family:'Space Mono',monospace"><?= $stu['units_sat'] ?></td>
             <td style="text-align:center;font-family:'Space Mono',monospace;color:#15803d;font-weight:700"><?= $stu['a_count'] ?></td>
             <td style="text-align:center;font-family:'Space Mono',monospace;color:<?= $stu['f_count'] > 0 ? '#dc2626' : 'var(--text-muted)' ?>"><?= $stu['f_count'] ?></td>
@@ -312,13 +312,13 @@ function gradeBg(string $g): string {
                     <div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
                         <div style="height:100%;width:<?= $stu['avg_score'] ?>%;background:<?= gradeColor($g) ?>;border-radius:3px"></div>
                     </div>
-                    <span style="font-family:'Space Mono',monospace;font-weight:700;font-size:14px"><?= $stu['avg_score'] ?></span>
+                    <span style="font-weight:700;font-size:14px"><?= formatMark($stu['avg_score']) ?></span>
                 </div>
             </td>
             <td style="text-align:center"><span class="grade-pill grade-<?= $g ?>"><?= $g ?></span></td>
             <td>
                 <a href="<?= APP_ROOT ?>/exams/transcripts.php?session_id=<?= $sel_session ?>&student_id=<?= urlencode($stu['student_id']) ?>"
-                   class="btn btn-ghost btn-sm">🎓</a>
+                   class="btn btn-ghost btn-sm" aria-label="View transcript"><?= appIcon('graduation-cap') ?></a>
             </td>
         </tr>
         <?php endforeach; ?>

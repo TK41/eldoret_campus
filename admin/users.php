@@ -151,7 +151,7 @@ include __DIR__ . '/partials/header.php';
 <div class="filter-bar card" style="margin-bottom:20px">
     <form method="GET" action="" class="filter-form">
         <div class="search-input-wrap">
-            <span class="search-icon">🔍</span>
+            <span class="search-icon"><?= appIcon('search') ?></span>
             <input type="text" name="search" class="form-control search-input"
                    placeholder="Search name, student ID, email, department..."
                    value="<?= htmlspecialchars($search) ?>">
@@ -204,16 +204,16 @@ include __DIR__ . '/partials/header.php';
                     <tr>
                         <td colspan="9" class="empty-row">
                             No users found.
-                            <a href="<?= APP_ROOT ?>/admin/add_user.php">Add a student →</a>
+                            <a href="<?= APP_ROOT ?>/admin/add_user.php">Add a student <?= appIcon('arrow-right') ?></a>
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($users as $u): ?>
-                        <tr>
+                        <tr data-search="<?= htmlspecialchars(strtolower($u['full_name'].' '.$u['student_id'].' '.$u['email'].' '.$u['department'].' '.$u['tier_name'])) ?>">
                             <td class="mono"><?= htmlspecialchars($u['student_id']) ?></td>
 
                             <td>
-                                <strong><?= htmlspecialchars($u['full_name']) ?></strong><br>
+                                <strong><?= htmlspecialchars(formatPersonName($u['full_name'])) ?></strong><br>
                                 <small style="color:var(--text-muted)"><?= htmlspecialchars($u['email']) ?></small>
                             </td>
 
@@ -241,7 +241,7 @@ include __DIR__ . '/partials/header.php';
                             <td>
                                 <?php if ($u['fines_owed'] > 0): ?>
                                     <span style="color:#dc2626;font-weight:700;font-family:'Space Mono',monospace">
-                                        <?= number_format($u['fines_owed'], 2) ?>
+                                        <?= formatCurrency($u['fines_owed'], true) ?>
                                     </span>
                                 <?php else: ?>
                                     <span style="color:var(--text-muted)">0.00</span>
@@ -256,7 +256,7 @@ include __DIR__ . '/partials/header.php';
                                 <?php endif; ?>
                             </td>
 
-                            <td style="font-size:12px"><?= date('d M Y', strtotime($u['created_at'])) ?></td>
+                            <td class="date-value" style="font-size:12px"><?= formatDate($u['created_at']) ?></td>
 
                             <td>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -310,6 +310,47 @@ function confirmDelete(name) {
         'This cannot be undone.'
     );
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.querySelector('.filter-form');
+    const searchInput = document.querySelector('input[name="search"]');
+    const table = document.querySelector('.data-table');
+    if (!form || !searchInput || !table) return;
+
+    const rows = Array.from(table.querySelectorAll('tbody tr[data-search]'));
+
+    function filterTable() {
+        const q = searchInput.value.trim().toLowerCase();
+        let visible = 0;
+
+        rows.forEach(tr => {
+            const text = (tr.dataset.search || '').toLowerCase();
+            const show = !q || text.includes(q);
+            tr.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+
+        const emptyRow = table.querySelector('.empty-row');
+        if (emptyRow && emptyRow.closest('tr')) {
+            emptyRow.closest('tr').style.display = visible === 0 ? '' : 'none';
+        }
+    }
+
+    let debounceTimer;
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(filterTable, 250);
+    });
+
+    searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.submit();
+        }
+    });
+
+    if (searchInput.value.trim()) filterTable();
+});
 </script>
 
 <?php include __DIR__ . '/partials/footer.php'; ?>

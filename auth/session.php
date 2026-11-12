@@ -4,6 +4,8 @@
 // Session management helpers
 // Include this at the top of every protected admin page
 // ============================================================
+require_once __DIR__ . '/../shared/formatters.php';
+require_once __DIR__ . '/../shared/icons.php';
 
 // Start the session if not already started
 if (session_status() === PHP_SESSION_NONE) {

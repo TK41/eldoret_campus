@@ -7,18 +7,25 @@
 
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../auth/session.php';
+require_once __DIR__ . '/../auth/rbac.php';
+require_once __DIR__ . '/../booking/reservation_helpers.php';
 requireLogin();
+requireAccess('inventory');
 
 $pageTitle  = 'Kit Management';
 $activePage = 'kits';
 $db         = getDB();
 $errors     = [];
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
+}
 
 // ============================================================
 // POST: Create a new kit
 // ============================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_kit') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_kit'
+    && !isset($_POST['add_to_kit_id'])) {
     $kit_code   = strtoupper(trim($_POST['kit_code']   ?? ''));
     $name       = trim($_POST['name']       ?? '');
     $description= trim($_POST['description']?? '');
@@ -44,16 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 
         $kitId = $db->lastInsertId();
 
-        // Assign components
+        // Assign components as a reusable kit template; assets remain independent inventory items.
         foreach ($components as $assetId) {
             $db->prepare("INSERT IGNORE INTO kit_components (kit_id, asset_id) VALUES (?, ?)")
                ->execute([$kitId, $assetId]);
-            // Link asset back to kit
-            $db->prepare("UPDATE assets SET kit_id = ? WHERE asset_id = ?")
-               ->execute([$kitId, $assetId]);
         }
 
-        setFlash('success', "✓ Kit <strong>$kit_code — $name</strong> created with " . count($components) . " component(s).");
+        setFlash('success', "Kit <strong>$kit_code — $name</strong> created with " . pluralizeCount(count($components), 'component') . ".");
         header('Location: ' . APP_ROOT . '/admin/kits.php');
         exit;
     }
@@ -64,32 +68,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_kit_id']) && !empty($_POST['new_components'])) {
     $kitId = intval($_POST['add_to_kit_id']);
-    $newAssets = array_filter(array_map('intval', $_POST['new_components']));
-    $kit = $db->prepare("SELECT status FROM kits WHERE kit_id = ?");
-    $kit->execute([$kitId]);
-    $kitStatus = $kit->fetchColumn();
+    $newAssets = array_values(array_unique(array_filter(array_map('intval', $_POST['new_components']), function ($assetId) {
+        return $assetId > 0;
+    })));
 
-    foreach ($newAssets as $assetId) {
-        $db->prepare("INSERT IGNORE INTO kit_components (kit_id, asset_id) VALUES (?, ?)")
-           ->execute([$kitId, $assetId]);
-        $db->prepare("UPDATE assets SET kit_id = ? WHERE asset_id = ?")
-           ->execute([$kitId, $assetId]);
+    try {
+        $db->beginTransaction();
+        $kit = $db->prepare("SELECT status FROM kits WHERE kit_id = ? FOR UPDATE");
+        $kit->execute([$kitId]);
+        $kitStatus = $kit->fetchColumn();
+        if (!$kitStatus) {
+            throw new InvalidArgumentException('Kit not found.');
+        }
 
-        // If kit is checked out, auto-issue this asset to the current borrower
-        if ($kitStatus === 'checked_out') {
-            // Find the current borrower and due date from any component transaction
-            $txn = $db->prepare("SELECT user_id, staff_id, due_at FROM transactions WHERE asset_id IN (SELECT asset_id FROM kit_components WHERE kit_id = ?) AND returned_at IS NULL LIMIT 1");
-            $txn->execute([$kitId]);
-            $row = $txn->fetch();
-            if ($row) {
-                $db->prepare("INSERT INTO transactions (asset_id, user_id, staff_id, checkout_at, due_at, condition_out, condition_note) VALUES (?, ?, ?, NOW(), ?, 'good', 'Added to issued kit')")
-                   ->execute([$assetId, $row['user_id'], $row['staff_id'], $row['due_at']]);
-                $db->prepare("UPDATE assets SET status = 'checked_out' WHERE asset_id = ?")
-                   ->execute([$assetId]);
+        $currentComponents = $db->prepare("SELECT asset_id FROM kit_components WHERE kit_id = ?");
+        $currentComponents->execute([$kitId]);
+        $currentIds = array_map('intval', $currentComponents->fetchAll(PDO::FETCH_COLUMN));
+        $newAssets = array_values(array_diff($newAssets, $currentIds));
+        if (!$newAssets) {
+            throw new InvalidArgumentException('Select at least one new component.');
+        }
+
+        $placeholders = implode(',', array_fill(0, count($newAssets), '?'));
+        $assetStmt = $db->prepare("
+            SELECT asset_id, asset_code, name, status, condition_rating
+            FROM assets
+            WHERE asset_id IN ($placeholders)
+            ORDER BY asset_id
+            FOR UPDATE
+        ");
+        $assetStmt->execute($newAssets);
+        $assetsToAdd = $assetStmt->fetchAll();
+        if (count($assetsToAdd) !== count($newAssets)) {
+            throw new InvalidArgumentException('One or more selected assets do not exist.');
+        }
+        foreach ($assetsToAdd as $asset) {
+            if ($asset['status'] !== 'available') {
+                throw new InvalidArgumentException($asset['asset_code'] . ' is not available to add to a kit.');
             }
         }
+
+        $issuedKit = null;
+        if ($kitStatus === 'checked_out') {
+            if (!canDo('inventory.checkout')) {
+                throw new InvalidArgumentException('You do not have permission to add components to an issued kit.');
+            }
+            $issuedKitStmt = $db->prepare("
+                SELECT t.user_id, t.staff_id, t.due_at, t.kit_group_id
+                FROM transactions t
+                JOIN kit_components kc ON kc.asset_id = t.asset_id
+                WHERE kc.kit_id = ? AND t.returned_at IS NULL
+                ORDER BY t.txn_id
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $issuedKitStmt->execute([$kitId]);
+            $issuedKit = $issuedKitStmt->fetch();
+            if (!$issuedKit || $issuedKit['due_at'] <= gmdate('Y-m-d H:i:s')) {
+                throw new InvalidArgumentException('The kit has no valid active issue or its return time has passed.');
+            }
+            reservationEnsureAvailable(
+                $db,
+                $newAssets,
+                gmdate('Y-m-d H:i:s'),
+                $issuedKit['due_at']
+            );
+            if (empty($issuedKit['kit_group_id'])) {
+                $issuedKit['kit_group_id'] = bin2hex(random_bytes(16));
+                $db->prepare("
+                    UPDATE transactions t
+                    JOIN kit_components kc ON kc.asset_id = t.asset_id
+                    SET t.kit_group_id = ?, t.is_kit_txn = 1
+                    WHERE kc.kit_id = ? AND t.returned_at IS NULL
+                ")->execute([$issuedKit['kit_group_id'], $kitId]);
+            }
+        }
+
+        $currentOwner = $db->prepare("SELECT kit_id FROM kit_components WHERE asset_id = ? LIMIT 1");
+        $removeOldLink = $db->prepare("DELETE FROM kit_components WHERE asset_id = ? AND kit_id != ?");
+        $addLink = $db->prepare("INSERT IGNORE INTO kit_components (kit_id, asset_id) VALUES (?, ?)");
+        $issueAddedAsset = $db->prepare("
+            INSERT INTO transactions
+                (asset_id, user_id, staff_id, checkout_at, due_at, condition_out,
+                 condition_note, is_kit_txn, kit_group_id)
+            VALUES (?, ?, ?, UTC_TIMESTAMP(), ?, ?, 'Added to issued kit', 1, ?)
+        ");
+        foreach ($assetsToAdd as $asset) {
+            $currentOwner->execute([$asset['asset_id']]);
+            $oldKitId = $currentOwner->fetchColumn();
+            if ($oldKitId) {
+                $removeOldLink->execute([$asset['asset_id'], $kitId]);
+            }
+            $addLink->execute([$kitId, $asset['asset_id']]);
+
+            if ($issuedKit) {
+                $issueAddedAsset->execute([
+                    $asset['asset_id'],
+                    $issuedKit['user_id'],
+                    $issuedKit['staff_id'],
+                    $issuedKit['due_at'],
+                    $asset['condition_rating'],
+                    $issuedKit['kit_group_id'],
+                ]);
+                $db->prepare("UPDATE assets SET status = 'checked_out' WHERE asset_id = ?")
+                    ->execute([$asset['asset_id']]);
+            }
+        }
+        $db->commit();
+        setFlash('success', 'Component(s) added to kit' . ($issuedKit ? ' and issued in the existing kit transaction.' : '.'));
+    } catch (InvalidArgumentException $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        setFlash('error', $e->getMessage());
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('Kit component update failed: ' . $e->getMessage());
+        setFlash('error', 'The kit components could not be updated. No changes were saved.');
     }
-    setFlash('success', 'Component(s) added to kit. If kit was checked out, new items were auto-issued to the current borrower.');
     header('Location: ' . APP_ROOT . '/admin/kits.php');
     exit;
 }
@@ -101,7 +195,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remov
     $kitId   = intval($_POST['kit_id']   ?? 0);
     $assetId = intval($_POST['asset_id'] ?? 0);
     $db->prepare("DELETE FROM kit_components WHERE kit_id = ? AND asset_id = ?")->execute([$kitId, $assetId]);
-    $db->prepare("UPDATE assets SET kit_id = NULL WHERE asset_id = ?")->execute([$assetId]);
     setFlash('success', 'Component removed from kit.');
     header('Location: ' . APP_ROOT . '/admin/kits.php');
     exit;
@@ -112,9 +205,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remov
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_kit' && isSuperAdmin()) {
     $kitId = intval($_POST['kit_id'] ?? 0);
-    $db->prepare("UPDATE assets SET kit_id = NULL WHERE kit_id = ?")->execute([$kitId]);
+    $db->prepare("DELETE FROM kit_components WHERE kit_id = ?")->execute([$kitId]);
     $db->prepare("DELETE FROM kits WHERE kit_id = ?")->execute([$kitId]);
-    setFlash('success', 'Kit deleted. Component assets are now standalone.');
+    setFlash('success', 'Kit deleted. Individual asset records remain unchanged.');
     header('Location: ' . APP_ROOT . '/admin/kits.php');
     exit;
 }
@@ -146,14 +239,30 @@ foreach ($componentRows as $c) {
     $kitComponents[$c['kit_id']][] = $c;
 }
 
-// Assets not yet in any kit (for the add-to-kit form)
+// Assets not yet in any kit (for new-kit creation)
 $unassignedAssets = $db->query("
-    SELECT asset_id, asset_code, name, asset_type, status
-    FROM assets
-    WHERE kit_id IS NULL
-      AND asset_type = 'equipment'
-      AND status != 'retired'
-    ORDER BY name
+    SELECT a.asset_id, a.asset_code, a.name, a.asset_type, a.status
+    FROM assets a
+    WHERE a.asset_type = 'equipment'
+      AND a.status != 'retired'
+      AND NOT EXISTS (
+          SELECT 1 FROM kit_components kc WHERE kc.asset_id = a.asset_id
+      )
+    ORDER BY a.name
+")->fetchAll();
+
+// Equipment eligible to be added to an existing kit, including assets already assigned elsewhere
+// so they can be reassigned to a different kit instead of being blocked forever.
+$kitAddableAssets = $db->query("
+    SELECT a.asset_id, a.asset_code, a.name, a.asset_type, a.status,
+           k.kit_id AS current_kit_id,
+           k.name AS current_kit_name
+    FROM assets a
+    LEFT JOIN kit_components kc ON kc.asset_id = a.asset_id
+    LEFT JOIN kits k ON k.kit_id = kc.kit_id
+    WHERE a.asset_type = 'equipment'
+      AND a.status != 'retired'
+    ORDER BY a.name
 ")->fetchAll();
 
 // Tiers for the dropdown
@@ -175,7 +284,7 @@ include __DIR__ . '/partials/header.php';
 ============================================================ -->
 <?php if (empty($kits)): ?>
     <div class="card" style="padding:40px;text-align:center;color:var(--text-muted)">
-        No kits yet. <button class="btn btn-primary" style="margin-left:12px" onclick="openModal('create-kit-modal')">Create your first kit →</button>
+        No kits yet. <button class="btn btn-primary" style="margin-left:12px" onclick="openModal('create-kit-modal')">Create your first kit <?= appIcon('arrow-right') ?></button>
     </div>
 <?php else: ?>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:20px">
@@ -194,8 +303,8 @@ include __DIR__ . '/partials/header.php';
                 <div style="padding:16px 20px">
                     <!-- Kit meta -->
                     <div style="display:flex;gap:16px;margin-bottom:14px;font-size:12px;color:var(--text-muted)">
-                        <span>🔐 Min: Tier <?= $kit['min_tier'] ?> (<?= htmlspecialchars($kit['tier_name']) ?>)</span>
-                        <span>📦 <?= $kit['component_count'] ?> component(s)</span>
+                        <span><?= appIcon('shield') ?> Min: Tier <?= $kit['min_tier'] ?> (<?= htmlspecialchars($kit['tier_name']) ?>)</span>
+                        <span><?= appIcon('package') ?> <?= $kit['component_count'] ?> component(s)</span>
                     </div>
 
                     <?php if ($kit['description']): ?>
@@ -219,12 +328,13 @@ include __DIR__ . '/partials/header.php';
                                             <span class="badge badge-<?= $comp['status'] ?>" style="font-size:9px"><?= ucfirst(str_replace('_',' ',$comp['status'])) ?></span>
                                             <!-- Remove component button -->
                                             <form method="POST" style="display:inline">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                                                 <input type="hidden" name="action"   value="remove_component">
                                                 <input type="hidden" name="kit_id"   value="<?= $kit['kit_id'] ?>">
                                                 <input type="hidden" name="asset_id" value="<?= $comp['asset_id'] ?>">
                                                 <button type="submit" class="btn btn-danger btn-sm"
                                                         style="padding:2px 7px;font-size:10px"
-                                                        onclick="return confirm('Remove this component from the kit?')">✕</button>
+                                                        onclick="return confirm('Remove this component from the kit?')" aria-label="Remove component"><?= appIcon('x') ?></button>
                                             </form>
                                         </div>
                                     </div>
@@ -244,6 +354,7 @@ include __DIR__ . '/partials/header.php';
                         <!-- Delete kit (superadmin only) -->
                         <?php if (isSuperAdmin()): ?>
                             <form method="POST" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                                 <input type="hidden" name="action" value="delete_kit">
                                 <input type="hidden" name="kit_id" value="<?= $kit['kit_id'] ?>">
                                 <button type="submit" class="btn btn-danger btn-sm"
@@ -265,10 +376,11 @@ include __DIR__ . '/partials/header.php';
 <div class="modal-overlay" id="create-kit-modal">
     <div class="modal" style="width:560px">
         <div class="modal-header">
-            <h2 class="modal-title">🎒 Create New Kit</h2>
-            <button class="modal-close" onclick="closeModal('create-kit-modal')">×</button>
+            <h2 class="modal-title"><?= appIcon('backpack') ?> Create New Kit</h2>
+            <button class="modal-close" onclick="closeModal('create-kit-modal')" aria-label="Close dialog"><?= appIcon('x') ?></button>
         </div>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
             <input type="hidden" name="action" value="create_kit">
             <div class="modal-body">
 
@@ -310,14 +422,18 @@ include __DIR__ . '/partials/header.php';
 
                 <div class="form-group">
                     <label>Add Components (select equipment assets)</label>
-                    <div style="max-height:200px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+                    <?php if (!empty($unassignedAssets)): ?>
+                        <input type="search" class="form-control asset-search" data-asset-search="create-kit-assets"
+                               placeholder="Search by asset code or name" aria-label="Search available equipment">
+                    <?php endif; ?>
+                    <div id="create-kit-assets" class="asset-search-list" style="max-height:200px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
                         <?php if (empty($unassignedAssets)): ?>
                             <div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center">
                                 No unassigned equipment available. Add equipment first.
                             </div>
                         <?php else: ?>
                             <?php foreach ($unassignedAssets as $a): ?>
-                                <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border-light)">
+                                <label data-asset-search-item="<?= htmlspecialchars(strtolower($a['asset_code'] . ' ' . $a['name']), ENT_QUOTES) ?>" style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border-light)">
                                     <input type="checkbox" name="components[]" value="<?= $a['asset_id'] ?>">
                                     <span>
                                         <span class="mono" style="font-size:11px;color:var(--text-muted)"><?= htmlspecialchars($a['asset_code']) ?></span>
@@ -326,6 +442,7 @@ include __DIR__ . '/partials/header.php';
                                     </span>
                                 </label>
                             <?php endforeach; ?>
+                            <div class="asset-search-empty" style="display:none;padding:12px;color:var(--text-muted);font-size:13px;text-align:center">No matching equipment.</div>
                         <?php endif; ?>
                     </div>
                     <span class="field-hint">You can add more components later from the kit card.</span>
@@ -334,7 +451,7 @@ include __DIR__ . '/partials/header.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" onclick="closeModal('create-kit-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Kit →</button>
+                <button type="submit" class="btn btn-primary">Create Kit <?= appIcon('arrow-right') ?></button>
             </div>
         </form>
     </div>
@@ -346,22 +463,35 @@ include __DIR__ . '/partials/header.php';
 <div class="modal-overlay" id="add-component-modal">
     <div class="modal">
         <div class="modal-header">
-            <h2 class="modal-title">➕ Add Component to <span id="kit-name-label"></span></h2>
-            <button class="modal-close" onclick="closeModal('add-component-modal')">×</button>
+            <h2 class="modal-title"><?= appIcon('plus') ?> Add Component to <span id="kit-name-label"></span></h2>
+            <button class="modal-close" onclick="closeModal('add-component-modal')" aria-label="Close dialog"><?= appIcon('x') ?></button>
         </div>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
             <input type="hidden" name="action" value="create_kit"><!-- reused as add-component via JS -->
             <div class="modal-body">
                 <input type="hidden" name="add_to_kit_id" id="add-to-kit-id">
-                <div style="max-height:280px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
-                    <?php foreach ($unassignedAssets as $a): ?>
-                        <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border-light)">
-                            <input type="checkbox" name="new_components[]" value="<?= $a['asset_id'] ?>">
+                <?php if (!empty($kitAddableAssets)): ?>
+                    <input type="search" class="form-control asset-search" data-asset-search="existing-kit-assets"
+                           placeholder="Search by asset code or name" aria-label="Search equipment to add">
+                <?php else: ?>
+                    <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">No equipment available.</p>
+                <?php endif; ?>
+                <div id="existing-kit-assets" class="asset-search-list" style="max-height:280px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">
+                    <?php foreach ($kitAddableAssets as $a): ?>
+                        <label data-asset-search-item="<?= htmlspecialchars(strtolower($a['asset_code'] . ' ' . $a['name']), ENT_QUOTES) ?>" style="display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border-light)">
+                            <input type="checkbox" name="new_components[]" value="<?= $a['asset_id'] ?>" <?= $a['status'] !== 'available' ? 'disabled' : '' ?>>
                             <span class="mono" style="font-size:11px"><?= htmlspecialchars($a['asset_code']) ?></span>
                             <span style="flex:1"><?= htmlspecialchars($a['name']) ?></span>
+                            <?php if (!empty($a['current_kit_name'])): ?>
+                                <span class="badge badge-warning" style="font-size:9px">In <?= htmlspecialchars($a['current_kit_name']) ?></span>
+                            <?php endif; ?>
                             <span class="badge badge-<?= $a['status'] ?>" style="font-size:9px"><?= ucfirst(str_replace('_',' ',$a['status'])) ?></span>
                         </label>
                     <?php endforeach; ?>
+                    <?php if (!empty($kitAddableAssets)): ?>
+                        <div class="asset-search-empty" style="display:none;padding:12px;color:var(--text-muted);font-size:13px;text-align:center">No matching equipment.</div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="modal-footer">
@@ -394,6 +524,25 @@ function openAddComponent(kitId, kitName) {
     document.getElementById('add-to-kit-id').value = kitId;
     openModal('add-component-modal');
 }
+
+document.querySelectorAll('[data-asset-search]').forEach(input => {
+    const list = document.getElementById(input.dataset.assetSearch);
+    const items = list.querySelectorAll('[data-asset-search-item]');
+    const emptyState = list.querySelector('.asset-search-empty');
+
+    input.addEventListener('input', function () {
+        const query = this.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const matches = item.dataset.assetSearchItem.includes(query);
+            item.style.display = matches ? 'flex' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        emptyState.style.display = visibleCount ? 'none' : 'block';
+    });
+});
 </script>
 
 <?php include __DIR__ . '/partials/footer.php'; ?>

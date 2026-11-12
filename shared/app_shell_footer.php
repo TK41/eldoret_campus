@@ -2,7 +2,7 @@
 </div>
 
 <footer class="app-footer">
-    <span>KIMC Eldoret Campus &copy; <?= date('Y') ?></span>
+    <span>&copy; 2026 Nisat. All rights reserved. Licensed to KIMC Eldoret.</span>
     <span>Logged in as <strong><?= htmlspecialchars($_SESSION['username'] ?? '') ?></strong></span>
 </footer>
 

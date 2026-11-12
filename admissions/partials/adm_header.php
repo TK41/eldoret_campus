@@ -9,8 +9,8 @@ $shellAdmin = getCurrentAdmin();
 $shellFlash = getFlash();
 $shellNavItems = [
     ['type' => 'section', 'label' => 'Admissions'],
-    ['type' => 'link', 'label' => 'Applications', 'url' => APP_ROOT . '/admissions/dashboard.php', 'key' => 'adm_dashboard', 'icon' => '📋'],
-    ['type' => 'link', 'label' => 'Public Form', 'url' => APP_ROOT . '/admissions/apply.php', 'key' => '', 'icon' => '↗', 'external' => true],
+    ['type' => 'link', 'label' => 'Applications', 'url' => APP_ROOT . '/admissions/dashboard.php', 'key' => 'adm_dashboard', 'icon' => 'clipboard'],
+    ['type' => 'link', 'label' => 'Public Form', 'url' => APP_ROOT . '/admissions/apply.php', 'key' => '', 'icon' => 'external-link', 'external' => true],
 ];
 
 require __DIR__ . '/../../shared/app_shell_header.php';

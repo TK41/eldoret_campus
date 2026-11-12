@@ -17,9 +17,21 @@ $errors     = [];
 $success    = false;
 $isEdit     = false;
 $asset      = [];
+$existingComponents = [];
 
 // Fetch tiers for the "Minimum Tier" selector
 $tiers = $db->query("SELECT tier_id, name FROM tiers ORDER BY tier_id")->fetchAll();
+$componentsTableExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'inventory_components'")->fetchColumn();
+
+function normalizeComponentCondition($value) {
+    $v = strtolower(trim((string)($value ?? 'good')));
+    return in_array($v, ['excellent','good','fair','damaged'], true) ? $v : 'good';
+}
+
+function normalizeComponentStatus($value) {
+    $v = strtolower(trim((string)($value ?? 'active')));
+    return in_array($v, ['active','inactive','missing','damaged'], true) ? $v : 'active';
+}
 
 // ============================================================
 // EDIT MODE: Load existing asset data if ?edit=ID is in URL
@@ -54,6 +66,12 @@ if ($editId > 0) {
 
     $isEdit    = true;
     $pageTitle = 'Edit Item: ' . $asset['name'];
+
+    if ($componentsTableExists) {
+        $componentsStmt = $db->prepare("SELECT * FROM inventory_components WHERE inventory_id = ? ORDER BY id ASC");
+        $componentsStmt->execute([$editId]);
+        $existingComponents = $componentsStmt->fetchAll();
+    }
 }
 
 // ============================================================
@@ -96,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $serial       = trim($_POST['serial_number'] ?? '');
     $manufacturer = trim($_POST['manufacturer'] ?? '');
     $model        = trim($_POST['model'] ?? '');
-    $kit_id       = intval($_POST['kit_id'] ?? 0) ?: null;
+    $kit_id       = null; // Kit membership is managed through kit_components, not asset.kit_id.
 
     // -- Validation --
     if (empty($name))       $errors[] = 'Item name is required.';
@@ -104,12 +122,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($quantity < 1 || $quantity > 100) $errors[] = 'Quantity must be between 1 and 100.';
     if (!in_array($asset_type, ['equipment','book'])) $errors[] = 'Please select Equipment or Book.';
 
+    $componentRows = [];
+    if (isset($_POST['components']) && is_array($_POST['components'])) {
+        foreach ($_POST['components'] as $row) {
+            if (!is_array($row)) continue;
+            $componentName = trim((string)($row['component_name'] ?? ''));
+            $componentCode = trim((string)($row['component_code'] ?? ''));
+            $serialNumber  = trim((string)($row['serial_number'] ?? ''));
+            $componentCond = normalizeComponentCondition($row['condition'] ?? 'good');
+            $componentStatus = normalizeComponentStatus($row['status'] ?? 'active');
+            if ($componentName === '' && $componentCode === '' && $serialNumber === '') continue;
+            if ($componentName === '') $errors[] = 'Each component must have a name.';
+            $componentRows[] = [
+                'component_name' => $componentName,
+                'component_code' => $componentCode,
+                'serial_number' => $serialNumber,
+                'condition' => $componentCond,
+                'status' => $componentStatus,
+            ];
+        }
+    }
+
     // Check asset code uniqueness
     if (empty($errors)) {
         $check = $db->prepare("SELECT COUNT(*) FROM assets WHERE asset_code = ?" . ($isEdit ? " AND asset_id != $editId" : ""));
         $check->execute([$asset_code]);
         if ($check->fetchColumn() > 0) {
-            $errors[] = "Asset code <strong>$asset_code</strong> already exists. Use a unique code.";
+            $errors[] = "Asset code <strong>$asset_code</strong> already exists. Use an asset code.";
+        }
+    }
+
+    // Check component code uniqueness across all component records
+    if ($componentsTableExists && empty($errors)) {
+        $seenCodes = [];
+        foreach ($componentRows as $row) {
+            $code = strtolower(trim((string)$row['component_code']));
+            if ($code === '') continue;
+            if (isset($seenCodes[$code])) {
+                $errors[] = 'Duplicate component code <strong>' . htmlspecialchars($row['component_code']) . '</strong> found in the same inventory item.';
+                break;
+            }
+            $seenCodes[$code] = true;
+
+            $dup = $db->prepare("SELECT COUNT(*) FROM inventory_components WHERE component_code = ?" . ($isEdit ? " AND inventory_id != $editId" : ""));
+            $dup->execute([$row['component_code']]);
+            if ($dup->fetchColumn() > 0) {
+                $errors[] = 'Component code <strong>' . htmlspecialchars($row['component_code']) . '</strong> is already assigned to another inventory record.';
+                break;
+            }
         }
     }
 
@@ -117,72 +177,146 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         $admin = getCurrentAdmin();
 
-        if ($isEdit) {
-            // UPDATE existing record
-            $db->prepare("
-                UPDATE assets SET
-                    asset_code       = :asset_code,
-                    name             = :name,
-                    asset_type       = :asset_type,
-                    kit_id           = :kit_id,
-                    status           = :status,
-                    condition_rating = :condition_rating,
-                    barcode          = :barcode,
-                    purchase_value   = :purchase_value,
-                    isbn             = :isbn,
-                    author           = :author,
-                    publisher        = :publisher,
-                    year_published   = :year_published,
-                    dewey_decimal    = :dewey_decimal,
-                    serial_number    = :serial_number,
-                    manufacturer     = :manufacturer,
-                    model            = :model,
-                    min_tier         = :min_tier,
-                    notes            = :notes
-                WHERE asset_id = :asset_id
-            ")->execute([
-                ':asset_code'       => $asset_code,
-                ':name'             => $name,
-                ':asset_type'       => $asset_type,
-                ':kit_id'           => ($asset_type === 'equipment' ? $kit_id : null),
-                ':status'           => $status,
-                ':condition_rating' => $condition,
-                ':barcode'          => $barcode ?: null,
-                ':purchase_value'   => $purchase_val ?: null,
-                ':isbn'             => ($asset_type === 'book' ? $isbn : null),
-                ':author'           => ($asset_type === 'book' ? $author : null),
-                ':publisher'        => ($asset_type === 'book' ? $publisher : null),
-                ':year_published'   => ($asset_type === 'book' ? $year_pub : null),
-                ':dewey_decimal'    => ($asset_type === 'book' ? $dewey : null),
-                ':serial_number'    => ($asset_type === 'equipment' ? $serial : null),
-                ':manufacturer'     => ($asset_type === 'equipment' ? $manufacturer : null),
-                ':model'            => ($asset_type === 'equipment' ? $model : null),
-                ':min_tier'         => $min_tier,
-                ':notes'            => $notes ?: null,
-                ':asset_id'         => $editId,
-            ]);
+        try {
+            $db->beginTransaction();
 
-            // Handle quantity adjustment (add or retire copies)
-            if ($quantity > $oldCount) {
-                // Add extra copies — find the highest existing copy number for this name/type
-                $existingCodes = $db->prepare("
-                    SELECT asset_code FROM assets
-                    WHERE name = ? AND asset_type = ? AND status != 'retired'
-                    ORDER BY asset_id
-                ");
-                $existingCodes->execute([$oldName, $oldType]);
-                $codes = $existingCodes->fetchAll(PDO::FETCH_COLUMN);
-                // Find the next available suffix number
-                $maxNum = 0;
-                foreach ($codes as $c) {
-                    if (preg_match('/-(\d+)$/', $c, $m)) {
-                        $maxNum = max($maxNum, (int)$m[1]);
+            if ($isEdit) {
+                // UPDATE existing record
+                $db->prepare("
+                    UPDATE assets SET
+                        asset_code       = :asset_code,
+                        name             = :name,
+                        asset_type       = :asset_type,
+                        kit_id           = :kit_id,
+                        status           = :status,
+                        condition_rating = :condition_rating,
+                        barcode          = :barcode,
+                        purchase_value   = :purchase_value,
+                        isbn             = :isbn,
+                        author           = :author,
+                        publisher        = :publisher,
+                        year_published   = :year_published,
+                        dewey_decimal    = :dewey_decimal,
+                        serial_number    = :serial_number,
+                        manufacturer     = :manufacturer,
+                        model            = :model,
+                        min_tier         = :min_tier,
+                        notes            = :notes
+                    WHERE asset_id = :asset_id
+                ")->execute([
+                    ':asset_code'       => $asset_code,
+                    ':name'             => $name,
+                    ':asset_type'       => $asset_type,
+                    ':kit_id'           => null,
+                    ':status'           => $status,
+                    ':condition_rating' => $condition,
+                    ':barcode'          => $barcode ?: null,
+                    ':purchase_value'   => $purchase_val ?: null,
+                    ':isbn'             => ($asset_type === 'book' ? $isbn : null),
+                    ':author'           => ($asset_type === 'book' ? $author : null),
+                    ':publisher'        => ($asset_type === 'book' ? $publisher : null),
+                    ':year_published'   => ($asset_type === 'book' ? $year_pub : null),
+                    ':dewey_decimal'    => ($asset_type === 'book' ? $dewey : null),
+                    ':serial_number'    => ($asset_type === 'equipment' ? $serial : null),
+                    ':manufacturer'     => ($asset_type === 'equipment' ? $manufacturer : null),
+                    ':model'            => ($asset_type === 'equipment' ? $model : null),
+                    ':min_tier'         => $min_tier,
+                    ':notes'            => $notes ?: null,
+                    ':asset_id'         => $editId,
+                ]);
+
+                // Handle quantity adjustment (add or retire copies)
+                if ($quantity > $oldCount) {
+                    $existingCodes = $db->prepare("
+                        SELECT asset_code FROM assets
+                        WHERE name = ? AND asset_type = ? AND status != 'retired'
+                        ORDER BY asset_id
+                    ");
+                    $existingCodes->execute([$oldName, $oldType]);
+                    $codes = $existingCodes->fetchAll(PDO::FETCH_COLUMN);
+                    $maxNum = 0;
+                    foreach ($codes as $c) {
+                        if (preg_match('/-(\d+)$/', $c, $m)) {
+                            $maxNum = max($maxNum, (int)$m[1]);
+                        }
+                    }
+                    $copyBase = preg_match('/-\d{2}$/', $asset_code) ? preg_replace('/-\d+$/', '', $asset_code) : $asset_code;
+
+                    $addStmt = $db->prepare("INSERT INTO assets (
+                        asset_code, name, asset_type, kit_id, status,
+                        condition_rating, barcode, purchase_value,
+                        isbn, author, publisher, year_published, dewey_decimal,
+                        serial_number, manufacturer, model, min_tier, notes, added_by
+                    ) VALUES (
+                        :asset_code, :name, :asset_type, :kit_id, :status,
+                        :condition_rating, :barcode, :purchase_value,
+                        :isbn, :author, :publisher, :year_published, :dewey_decimal,
+                        :serial_number, :manufacturer, :model, :min_tier, :notes, :added_by
+                    )");
+                    for ($i = $oldCount + 1; $i <= $quantity; $i++) {
+                        $maxNum++;
+                        $addStmt->execute([
+                            ':asset_code'       => $copyBase . '-' . str_pad($maxNum, 2, '0', STR_PAD_LEFT),
+                            ':name'             => $name,
+                            ':asset_type'       => $asset_type,
+                            ':kit_id'           => null,
+                            ':status'           => $status,
+                            ':condition_rating' => $condition,
+                            ':barcode'          => $barcode ?: null,
+                            ':purchase_value'   => $purchase_val ?: null,
+                            ':isbn'             => $isbn ?: null,
+                            ':author'           => $author ?: null,
+                            ':publisher'        => $publisher ?: null,
+                            ':year_published'   => $year_pub ?: null,
+                            ':dewey_decimal'    => $dewey ?: null,
+                            ':serial_number'    => $serial ?: null,
+                            ':manufacturer'     => $manufacturer ?: null,
+                            ':model'            => $model ?: null,
+                            ':min_tier'         => $min_tier,
+                            ':notes'            => $notes ?: null,
+                            ':added_by'         => $admin['admin_id'],
+                        ]);
+                    }
+                } elseif ($quantity < $oldCount) {
+                    $remove = $oldCount - $quantity;
+                    $pick = $db->prepare("
+                        SELECT asset_id FROM assets
+                        WHERE name = ? AND asset_type = ? AND status = 'available'
+                        ORDER BY asset_id DESC
+                        LIMIT ?
+                    ");
+                    $pick->execute([$oldName, $oldType, $remove]);
+                    $ids = $pick->fetchAll(PDO::FETCH_COLUMN);
+                    if (count($ids) < $remove) {
+                        $errors[] = 'Could only retire ' . count($ids) . ' of ' . $remove . ' copies — the rest are checked out or in maintenance.';
+                    }
+                    if ($ids) {
+                        $ph = implode(',', array_fill(0, count($ids), '?'));
+                        $db->prepare("UPDATE assets SET status='retired' WHERE asset_id IN ($ph)")->execute($ids);
                     }
                 }
-                // Base code for new copies: strip suffix from current asset_code if present
-                $copyBase = preg_match('/-\d{2}$/', $asset_code) ? preg_replace('/-\d+$/', '', $asset_code) : $asset_code;
 
-                $addStmt = $db->prepare("INSERT INTO assets (
+                $assetId = $editId;
+                if ($componentsTableExists) {
+                    $db->prepare("DELETE FROM inventory_components WHERE inventory_id = ?")->execute([$assetId]);
+                    foreach ($componentRows as $component) {
+                        if ($component['component_name'] === '') continue;
+                        $db->prepare("INSERT INTO inventory_components (inventory_id, component_name, component_code, serial_number, condition, status)
+                            VALUES (?, ?, ?, ?, ?, ?)")->execute([
+                                $assetId,
+                                $component['component_name'],
+                                $component['component_code'] ?: null,
+                                $component['serial_number'] ?: null,
+                                $component['condition'],
+                                $component['status'],
+                            ]);
+                    }
+                }
+
+                setFlash('success', "Asset <strong>$name</strong> updated successfully.");
+
+            } else {
+                $stmt = $db->prepare("INSERT INTO assets (
                     asset_code, name, asset_type, kit_id, status,
                     condition_rating, barcode, purchase_value,
                     isbn, author, publisher, year_published, dewey_decimal,
@@ -193,13 +327,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     :isbn, :author, :publisher, :year_published, :dewey_decimal,
                     :serial_number, :manufacturer, :model, :min_tier, :notes, :added_by
                 )");
-                for ($i = $oldCount + 1; $i <= $quantity; $i++) {
-                    $maxNum++;
-                    $addStmt->execute([
-                        ':asset_code'       => $copyBase . '-' . str_pad($maxNum, 2, '0', STR_PAD_LEFT),
+
+                $createdIds = [];
+                for ($i = 0; $i < $quantity; $i++) {
+                    $copy_code = ($quantity > 1)
+                        ? $asset_code . '-' . str_pad($i + 1, 2, '0', STR_PAD_LEFT)
+                        : $asset_code;
+
+                    $stmt->execute([
+                        ':asset_code'       => $copy_code,
                         ':name'             => $name,
                         ':asset_type'       => $asset_type,
-                        ':kit_id'           => ($asset_type === 'equipment' ? $kit_id : null),
+                        ':kit_id'           => null,
                         ':status'           => $status,
                         ':condition_rating' => $condition,
                         ':barcode'          => $barcode ?: null,
@@ -216,81 +355,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':notes'            => $notes ?: null,
                         ':added_by'         => $admin['admin_id'],
                     ]);
+                    $createdIds[] = (int)$db->lastInsertId();
                 }
-            } elseif ($quantity < $oldCount) {
-                // Retire the excess copies — only pick available ones to avoid disrupting loans
-                $remove = $oldCount - $quantity;
-                $pick = $db->prepare("
-                    SELECT asset_id FROM assets
-                    WHERE name = ? AND asset_type = ? AND status = 'available'
-                    ORDER BY asset_id DESC
-                    LIMIT ?
-                ");
-                $pick->execute([$oldName, $oldType, $remove]);
-                $ids = $pick->fetchAll(PDO::FETCH_COLUMN);
-                if (count($ids) < $remove) {
-                    // Not enough available copies to retire — warn but proceed with what we can
-                    $errors[] = 'Could only retire ' . count($ids) . ' of ' . $remove . ' copies — the rest are checked out or in maintenance.';
+
+                if ($componentsTableExists) {
+                    foreach ($createdIds as $inventoryId) {
+                        foreach ($componentRows as $component) {
+                            if ($component['component_name'] === '') continue;
+                            $db->prepare("INSERT INTO inventory_components (inventory_id, component_name, component_code, serial_number, condition, status)
+                                VALUES (?, ?, ?, ?, ?, ?)")->execute([
+                                    $inventoryId,
+                                    $component['component_name'],
+                                    $component['component_code'] ?: null,
+                                    $component['serial_number'] ?: null,
+                                    $component['condition'],
+                                    $component['status'],
+                                ]);
+                        }
+                    }
                 }
-                if ($ids) {
-                    $ph = implode(',', array_fill(0, count($ids), '?'));
-                    $db->prepare("UPDATE assets SET status='retired' WHERE asset_id IN ($ph)")->execute($ids);
-                }
+
+                $msg = ($quantity == 1)
+                    ? "Item <strong>" . htmlspecialchars($name) . "</strong> ($asset_code) added successfully."
+                    : "Added <strong>$quantity copies</strong> of <strong>" . htmlspecialchars($name) . "</strong> successfully.";
+
+                setFlash('success', $msg);
             }
 
-            setFlash('success', "✓ Asset <strong>$name</strong> updated successfully.");
-
-        } else {
-            // INSERT new record(s)
-            $stmt = $db->prepare("INSERT INTO assets (
-                asset_code, name, asset_type, kit_id, status,
-                condition_rating, barcode, purchase_value,
-                isbn, author, publisher, year_published, dewey_decimal,
-                serial_number, manufacturer, model, min_tier, notes, added_by
-            ) VALUES (
-                :asset_code, :name, :asset_type, :kit_id, :status,
-                :condition_rating, :barcode, :purchase_value,
-                :isbn, :author, :publisher, :year_published, :dewey_decimal,
-                :serial_number, :manufacturer, :model, :min_tier, :notes, :added_by
-            )");
-
-            for ($i = 0; $i < $quantity; $i++) {
-                $copy_code = ($quantity > 1)
-                    ? $asset_code . '-' . str_pad($i + 1, 2, '0', STR_PAD_LEFT)
-                    : $asset_code;
-
-                $stmt->execute([
-                    ':asset_code'       => $copy_code,
-                    ':name'             => $name,
-                    ':asset_type'       => $asset_type,
-                    ':kit_id'           => ($asset_type === 'equipment' ? $kit_id : null),
-                    ':status'           => $status,
-                    ':condition_rating' => $condition,
-                    ':barcode'          => $barcode ?: null,
-                    ':purchase_value'   => $purchase_val ?: null,
-                    ':isbn'             => $isbn ?: null,
-                    ':author'           => $author ?: null,
-                    ':publisher'        => $publisher ?: null,
-                    ':year_published'   => $year_pub ?: null,
-                    ':dewey_decimal'    => $dewey ?: null,
-                    ':serial_number'    => $serial ?: null,
-                    ':manufacturer'     => $manufacturer ?: null,
-                    ':model'            => $model ?: null,
-                    ':min_tier'         => $min_tier,
-                    ':notes'            => $notes ?: null,
-                    ':added_by'         => $admin['admin_id'],
-                ]);
-            }
-
-            $msg = ($quantity == 1)
-                ? "✓ Item <strong>" . htmlspecialchars($name) . "</strong> ($asset_code) added successfully."
-                : "✓ Added <strong>$quantity copies</strong> of <strong>" . htmlspecialchars($name) . "</strong> successfully.";
-
-            setFlash('success', $msg);
+            $db->commit();
+        } catch (Throwable $e) {
+            $db->rollBack();
+            $errors[] = 'Unable to save the inventory item and its components: ' . $e->getMessage();
         }
 
-        header('Location: ' . APP_ROOT . '/admin/assets.php');
-        exit;
+        if (empty($errors)) {
+            header('Location: ' . APP_ROOT . '/admin/assets.php');
+            exit;
+        }
     }
 
     // On validation error: keep POST data to refill the form
@@ -314,6 +415,30 @@ $selectedType = getFormValue('asset_type', '');
 if (!in_array($selectedType, ['book', 'equipment'], true)) {
     $selectedType = '';
 }
+
+$componentRows = [];
+if (!empty($_POST['components']) && is_array($_POST['components'])) {
+    foreach ($_POST['components'] as $row) {
+        if (!is_array($row)) continue;
+        $componentRows[] = [
+            'component_name' => trim((string)($row['component_name'] ?? '')),
+            'component_code' => trim((string)($row['component_code'] ?? '')),
+            'serial_number' => trim((string)($row['serial_number'] ?? '')),
+            'condition' => normalizeComponentCondition($row['condition'] ?? 'good'),
+            'status' => normalizeComponentStatus($row['status'] ?? 'active'),
+        ];
+    }
+} elseif ($isEdit && !empty($existingComponents)) {
+    foreach ($existingComponents as $row) {
+        $componentRows[] = [
+            'component_name' => $row['component_name'],
+            'component_code' => $row['component_code'],
+            'serial_number' => $row['serial_number'],
+            'condition' => normalizeComponentCondition($row['condition']),
+            'status' => normalizeComponentStatus($row['status']),
+        ];
+    }
+}
 ?>
 
 <!-- ── Page Header ── -->
@@ -322,7 +447,7 @@ if (!in_array($selectedType, ['book', 'equipment'], true)) {
         <h1 class="page-title"><?= $isEdit ? htmlspecialchars('Edit: ' . $asset['name']) : 'Add New Item' ?></h1>
         <p class="page-subtitle"><?= $isEdit ? 'Update asset details and manage copies' : 'Add books or media equipment to the inventory' ?></p>
     </div>
-    <a href="<?= APP_ROOT ?>/admin/assets.php" class="btn btn-ghost">← Back to Assets</a>
+    <a href="<?= APP_ROOT ?>/admin/assets.php" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Back to Assets</a>
 </div>
 
 <!-- ── Validation errors ── -->
@@ -354,12 +479,7 @@ if (!in_array($selectedType, ['book', 'equipment'], true)) {
                         <option value="equipment" <?= $selectedType === 'equipment' ? 'selected' : '' ?>>Equipment</option>
                         <option value="book" <?= $selectedType === 'book' ? 'selected' : '' ?>>Book</option>
                     </select>
-                    <span class="field-hint">Select an option to show the matching form fields.</span>
                 </div>
-            </div>
-
-            <div class="selection-tip" id="selection-tip">
-                <?= $selectedType ? 'You selected <strong>' . ($selectedType === 'equipment' ? 'Equipment' : 'Book') . '</strong>. Fill in the matching fields below.' : 'Choose equipment or a book to reveal the matching details form.' ?>
             </div>
         </div>
     </div>
@@ -481,7 +601,6 @@ if (!in_array($selectedType, ['book', 'equipment'], true)) {
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <span class="field-hint">Prevents low-tier students from borrowing sensitive equipment.</span>
             </div>
 
         </div>
@@ -533,10 +652,56 @@ if (!in_array($selectedType, ['book', 'equipment'], true)) {
         </div>
     </div>
 
+    <!-- ── Components Section ── -->
+    <div class="card" id="components-section" style="margin-bottom:20px;display:<?= $selectedType === 'equipment' ? 'block' : 'none' ?>">
+        <div class="card-header">
+            <h2 class="card-title">Components</h2>
+        </div>
+        <div class="card-body">
+            <table class="data-table" style="margin-bottom:12px">
+                <thead>
+                    <tr>
+                        <th style="width:32%">Component Name</th>
+                        <th style="width:20%">Asset Code</th>
+                        <th style="width:20%">Serial Number</th>
+                        <th style="width:15%">Condition</th>
+                        <th style="width:15%">Status</th>
+                        <th style="width:80px">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="components-body">
+                    <?php foreach ($componentRows as $i => $component): ?>
+                        <tr class="component-row">
+                            <td><input type="text" name="components[<?= $i ?>][component_name]" class="form-control" value="<?= htmlspecialchars($component['component_name']) ?>" placeholder="e.g. Transmitter"></td>
+                            <td><input type="text" name="components[<?= $i ?>][component_code]" class="form-control" value="<?= htmlspecialchars($component['component_code']) ?>" placeholder="TX001"></td>
+                            <td><input type="text" name="components[<?= $i ?>][serial_number]" class="form-control" value="<?= htmlspecialchars($component['serial_number']) ?>" placeholder="Optional"></td>
+                            <td>
+                                <select name="components[<?= $i ?>][condition]" class="form-control">
+                                    <?php foreach (['excellent','good','fair','damaged'] as $c): ?>
+                                        <option value="<?= $c ?>" <?= $component['condition'] === $c ? 'selected' : '' ?>><?= ucfirst($c) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="components[<?= $i ?>][status]" class="form-control">
+                                    <?php foreach (['active','inactive','missing','damaged'] as $s): ?>
+                                        <option value="<?= $s ?>" <?= $component['status'] === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td><button type="button" class="btn btn-ghost btn-sm remove-component">Remove</button></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <button type="button" id="add-component-btn" class="btn btn-ghost">+ Add Component</button>
+        </div>
+    </div>
+
     <!-- ── Submit buttons ── -->
     <div class="form-actions">
         <button type="submit" class="btn btn-primary btn-lg">
-            <?= $isEdit ? '✓ Update Item' : '✓ Add to Inventory' ?>
+            <?= appIcon($isEdit ? 'check' : 'plus') ?> <?= $isEdit ? 'Update Item' : 'Add to Inventory' ?>
         </button>
         <button type="reset" class="btn btn-ghost btn-lg">Reset Form</button>
         <a href="<?= APP_ROOT ?>/admin/assets.php" class="btn btn-ghost btn-lg">Cancel</a>
@@ -553,8 +718,8 @@ function getCodePrefix(type) {
 
 function switchType(type) {
     const normalizedType = type === 'equipment' ? 'equipment' : type === 'book' ? 'book' : '';
-    const selectionTip = document.getElementById('selection-tip');
     const equipmentSection = document.getElementById('equipment-section');
+    const componentsSection = document.getElementById('components-section');
     const bookSection = document.getElementById('book-section');
     const nameInput = document.getElementById('name');
     const codeInput = document.getElementById('asset_code');
@@ -563,23 +728,18 @@ function switchType(type) {
         bookSection.style.display = 'none';
         setTimeout(function() {
             equipmentSection.style.display = 'block';
+            if (componentsSection) componentsSection.style.display = 'block';
         }, 10);
     } else if (normalizedType === 'book') {
         equipmentSection.style.display = 'none';
+        if (componentsSection) componentsSection.style.display = 'none';
         setTimeout(function() {
             bookSection.style.display = 'block';
         }, 10);
     } else {
         equipmentSection.style.display = 'none';
         bookSection.style.display = 'none';
-    }
-
-    if (selectionTip) {
-        selectionTip.innerHTML = normalizedType === 'equipment'
-            ? 'You selected <strong>Equipment</strong>. Fill in the equipment-specific fields below.'
-            : normalizedType === 'book'
-                ? 'You selected <strong>Book</strong>. Fill in the book-specific fields below.'
-                : 'Choose equipment or a book to reveal the matching details form.';
+        if (componentsSection) componentsSection.style.display = 'none';
     }
 
     if (nameInput) {
@@ -624,6 +784,54 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         switchType(typeSelect.value);
     }
+
+    const tableBody = document.getElementById('components-body');
+    const addBtn = document.getElementById('add-component-btn');
+    const renderComponentRow = function(index) {
+        if (!tableBody) return;
+        const row = document.createElement('tr');
+        row.className = 'component-row';
+        row.innerHTML = `
+            <td><input type="text" name="components[${index}][component_name]" class="form-control" placeholder="e.g. Transmitter"></td>
+            <td><input type="text" name="components[${index}][component_code]" class="form-control" placeholder="TX001"></td>
+            <td><input type="text" name="components[${index}][serial_number]" class="form-control" placeholder="Optional"></td>
+            <td>
+                <select name="components[${index}][condition]" class="form-control">
+                    <option value="excellent">Excellent</option>
+                    <option value="good" selected>Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="damaged">Damaged</option>
+                </select>
+            </td>
+            <td>
+                <select name="components[${index}][status]" class="form-control">
+                    <option value="active" selected>Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="missing">Missing</option>
+                    <option value="damaged">Damaged</option>
+                </select>
+            </td>
+            <td><button type="button" class="btn btn-ghost btn-sm remove-component">Remove</button></td>
+        `;
+        row.querySelector('.remove-component').addEventListener('click', function() {
+            row.remove();
+        });
+        tableBody.appendChild(row);
+    };
+
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            const currentRows = tableBody.querySelectorAll('.component-row').length;
+            renderComponentRow(currentRows);
+        });
+    }
+
+    document.querySelectorAll('.remove-component').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const row = btn.closest('.component-row');
+            if (row) row.remove();
+        });
+    });
 });
 </script>
 

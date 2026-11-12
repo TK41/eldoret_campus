@@ -57,9 +57,9 @@ function feePostPayment(PDO $db, int $fsid, float $amt, string $mode, $phone, $r
     if ($r) {
         $dup = $db->prepare("SELECT payment_id FROM fee_payments WHERE fee_student_id=? AND reference=?");
         $dup->execute([$fsid,$r]);
-        if ($dup->fetch()) { $log[]=["type"=>"skip","msg"=>"    ~ dup $r (KES ".number_format($amt).") skipped"]; return false; }
+        if ($dup->fetch()) { $log[]=["type"=>"skip","msg"=>"    ~ dup $r (".formatCurrency($amt).") skipped"]; return false; }
     }
-    $log[]=["type"=>"pay","msg"=>"    + KES ".number_format($amt)." ".strtoupper($m)." ref=".($r??"—")." date=$d"];
+    $log[]=["type"=>"pay","msg"=>"    + ".formatCurrency($amt)." ".strtoupper($m)." ref=".($r??"—")." date=$d"];
     if (!$dry) $db->prepare("INSERT INTO fee_payments (fee_student_id,amount,mode,mpesa_number,reference,date_paid,posted_by) VALUES (?,?,?,?,?,?,?)")->execute([$fsid,$amt,$m,$p,$r,$d,$adminId]);
     return true;
 }
@@ -84,7 +84,7 @@ function feeFlushStudent(PDO $db, ?array &$cur, int $groupId, bool $dry, array &
                ->execute([$sid,$cur['name'],$cur['prog'],$groupId,$cur['fees']]);
             $cur['fsid'] = $db->lastInsertId();
         } else { $cur['fsid'] = 0; }
-        $log[]=["type"=>"ok","msg"=>"  + {$cur['name']} ($sid) KES ".number_format($cur['fees'])];
+        $log[]=["type"=>"ok","msg"=>"  + {$cur['name']} ($sid) ".formatCurrency($cur['fees'])];
         $sadd++;
     }
     foreach ($cur['pmts'] as $pp) {
@@ -194,7 +194,7 @@ function runFeeImport(string $path, PDO $db, array $sheetMap, int $adminId, bool
         }
         feeFlushStudent($db,$cur,$gid,$dry,$log,$sadd,$padd);
         $v=$dry?'would be':'were';
-        $log[]=["type"=>"summary","msg"=>"  → $sadd student(s) $v added, $padd payment(s) $v posted."];
+        $log[]=["type"=>"summary","msg"=>pluralizeCount($sadd, 'student')." $v added, ".pluralizeCount($padd, 'payment')." $v posted."];
     }
 
     $zip->close();
@@ -220,16 +220,16 @@ include __DIR__ . '/partials/header.php';
 .log-ok{color:#16a34a}.log-pay{color:#2563eb}.log-info{color:var(--text-muted)}.log-skip{color:#d97706}.log-error{color:#dc2626;font-weight:700}.log-sheet{color:var(--text-primary);font-weight:700;margin-top:8px;border-top:1px solid var(--border);padding-top:8px}.log-summary{color:#7c3aed;font-weight:700}
 </style>
 <div class="page-header">
-    <div><h1 class="page-title">📥 Import Excel</h1><p class="page-subtitle">Upload the fees Excel to bulk-import all students and payments</p></div>
-    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost">← Students</a>
+    <div><h1 class="page-title"><?= appIcon('upload') ?> Import Excel</h1><p class="page-subtitle">Upload the fees Excel to bulk-import all students and payments</p></div>
+    <a href="<?= APP_ROOT ?>/fees/students.php" class="btn btn-ghost"><?= appIcon('arrow-left') ?> Students</a>
 </div>
 <?php if(!empty($errors)): ?><div class="alert alert-error"><?php foreach($errors as $e): ?><div><?=htmlspecialchars($e)?></div><?php endforeach;?></div><?php endif;?>
-<?php if($importDone): ?><div class="alert alert-success">✅ Import complete! <a href="<?= APP_ROOT ?>/fees/students.php">View students →</a></div><?php endif;?>
+<?php if($importDone): ?><div class="alert alert-success"><?= appIcon('check') ?> Import complete! <a href="<?= APP_ROOT ?>/fees/students.php">View students <?= appIcon('arrow-right') ?></a></div><?php endif;?>
 <div class="card import-wrap"><div class="card-body">
     <div style="background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.2);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px;line-height:1.65">
         <strong>Expected sheet names:</strong>
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
-            <?php foreach($sheetGroupMap as $k=>$v):?><div><code style="background:rgba(0,0,0,.08);padding:1px 6px;border-radius:4px"><?=$k?></code> → Group <?=$v?></div><?php endforeach;?>
+            <?php foreach($sheetGroupMap as $k=>$v):?><div><code style="background:rgba(0,0,0,.08);padding:1px 6px;border-radius:4px"><?=$k?></code> maps to Group <?=$v?></div><?php endforeach;?>
         </div>
         <div style="margin-top:10px;color:var(--text-muted);font-size:12px">Duplicate transaction references skipped. Students without a valid ADM NO (e.g. 12822/25) are skipped. Safe to run multiple times.</div>
     </div>
@@ -237,7 +237,7 @@ include __DIR__ . '/partials/header.php';
         <div style="margin-bottom:18px">
             <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-muted);margin-bottom:7px">Excel File (.xlsx) *</label>
             <div class="upload-zone" id="drop-zone" onclick="document.getElementById('excel_file').click()">
-                <div style="font-size:36px;margin-bottom:10px">📊</div>
+                <div style="font-size:36px;margin-bottom:10px"><?= appIcon('chart') ?></div>
                 <div id="file-label" style="font-size:15px;font-weight:600;color:var(--text-muted)">Click to choose .xlsx file</div>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:5px">or drag and drop here</div>
                 <input type="file" id="excel_file" name="excel_file" accept=".xlsx" style="display:none" onchange="showFN(this)">
@@ -247,7 +247,7 @@ include __DIR__ . '/partials/header.php';
             <input type="checkbox" name="dry_run" style="width:16px;height:16px;accent-color:#d97706">
             <strong>Dry Run</strong> — preview without saving anything
         </label>
-        <button type="submit" class="btn btn-primary" style="width:100%;padding:13px;font-size:14px">📥 Run Import</button>
+        <button type="submit" class="btn btn-primary" style="width:100%;padding:13px;font-size:14px"><?= appIcon('upload') ?> Run Import</button>
     </form>
 </div></div>
 <?php if(!empty($importLog)):?>

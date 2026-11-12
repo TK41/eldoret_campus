@@ -33,6 +33,11 @@
 
     // Override the existing toggleSidebar with the enhanced version
     window.toggleSidebar = function () {
+        if (window.innerWidth > 768) {
+            const collapsed = document.body.classList.toggle('sidebar-collapsed');
+            try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+            return;
+        }
         const sb = document.getElementById('sidebar');
         if (!sb) return;
         sb.classList.contains('open') ? closeSidebar() : openSidebar();

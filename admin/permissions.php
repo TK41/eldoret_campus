@@ -32,7 +32,7 @@ include __DIR__ . '/partials/header.php';
         <p class="page-subtitle">Tier-based rules that control what each student can borrow</p>
     </div>
     <?php if (isSuperAdmin()): ?>
-        <a href="<?= APP_ROOT ?>/admin/settings.php#tiers" class="btn btn-primary">✏️ Edit Tier Rules</a>
+        <a href="<?= APP_ROOT ?>/admin/settings.php#tiers" class="btn btn-primary"><?= appIcon('pencil') ?> Edit Tier Rules</a>
     <?php endif; ?>
 </div>
 
@@ -40,7 +40,7 @@ include __DIR__ . '/partials/header.php';
      FULL TIER MATRIX TABLE
 ============================================================ -->
 <div class="card" style="margin-bottom:24px">
-    <div class="card-header"><h2 class="card-title">📋 Tier Rules Matrix</h2></div>
+    <div class="card-header"><h2 class="card-title"><?= appIcon('clipboard') ?> Tier Rules Matrix</h2></div>
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -104,7 +104,7 @@ include __DIR__ . '/partials/header.php';
                     <td>Can Make Reservations</td>
                     <?php foreach ($tiers as $tier): ?>
                         <td style="text-align:center;font-size:16px">
-                            <?= $tier['can_reserve'] ? '✅' : '❌' ?>
+                            <?= appIcon($tier['can_reserve'] ? 'check' : 'x') ?>
                         </td>
                     <?php endforeach; ?>
                 </tr>
@@ -112,7 +112,7 @@ include __DIR__ . '/partials/header.php';
                     <td>Can Borrow Kit Bundles</td>
                     <?php foreach ($tiers as $tier): ?>
                         <td style="text-align:center;font-size:16px">
-                            <?= $tier['can_kit'] ? '✅' : '❌' ?>
+                            <?= appIcon($tier['can_kit'] ? 'check' : 'x') ?>
                         </td>
                     <?php endforeach; ?>
                 </tr>
@@ -120,7 +120,7 @@ include __DIR__ . '/partials/header.php';
                     <td>Admin Dashboard Access</td>
                     <?php foreach ($tiers as $tier): ?>
                         <td style="text-align:center;font-size:16px">
-                            <?= $tier['is_admin'] ? '✅' : '❌' ?>
+                            <?= appIcon($tier['is_admin'] ? 'check' : 'x') ?>
                         </td>
                     <?php endforeach; ?>
                 </tr>
@@ -138,17 +138,17 @@ include __DIR__ . '/partials/header.php';
                 <span style="font-weight:700;color:var(--text-primary)"><?= htmlspecialchars($tier['name']) ?></span>
             </div>
             <div style="padding:16px 20px;font-size:13px;line-height:2;color:var(--text-muted)">
-                <div>📚 <strong><?= $tier['max_books']>=99?'Unlimited':$tier['max_books'] ?></strong> books for <strong><?= $tier['book_loan_days'] ?> days</strong></div>
-                <div>📷 <strong><?= $tier['max_equipment']>=99?'Unlimited':$tier['max_equipment'] ?></strong> equipment for <strong><?= $tier['equip_loan_hrs']>=999?'custom':$tier['equip_loan_hrs'].'h' ?></strong></div>
-                <div><?= $tier['can_reserve']?'✅':'❌' ?> Advance reservations</div>
-                <div><?= $tier['can_kit']?'✅':'❌' ?> Kit bundles</div>
+                <div><?= appIcon('book-open') ?> <strong><?= $tier['max_books']>=99?'Unlimited':$tier['max_books'] ?></strong> books for <strong><?= $tier['book_loan_days'] ?> days</strong></div>
+                <div><?= appIcon('package') ?> <strong><?= $tier['max_equipment']>=99?'Unlimited':$tier['max_equipment'] ?></strong> equipment for <strong><?= $tier['equip_loan_hrs']>=999?'custom':$tier['equip_loan_hrs'].'h' ?></strong></div>
+                <div><?= appIcon($tier['can_reserve'] ? 'check' : 'x') ?> Advance reservations</div>
+                <div><?= appIcon($tier['can_kit'] ? 'check' : 'x') ?> Kit bundles</div>
                 <div style="margin-top:8px;color:var(--text-primary);font-weight:600">
                     <?= $tierCounts[$tier['tier_id']]['total'] ?? 0 ?> student(s) on this tier
                 </div>
             </div>
             <div style="padding:0 20px 16px">
                 <a href="<?= APP_ROOT ?>/admin/users.php?tier=<?= $tier['tier_id'] ?>" class="btn btn-ghost btn-sm">
-                    View Students →
+                    View Students <?= appIcon('arrow-right') ?>
                 </a>
             </div>
         </div>
