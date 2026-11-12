@@ -15,6 +15,7 @@ body[data-module="exams"] { --module-accent: #047857; }
 
 .topbar-brand .brand-name { color: var(--text-primary); }
 .topbar-brand .brand-sub { color: var(--module-accent); font-weight: 600; }
+.topbar-brand img { height: 40px; width: auto; object-fit: contain; }
 
 .sidebar {
     background: var(--sidebar-bg);

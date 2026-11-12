@@ -10,6 +10,7 @@ $shellModule = 'inventory';
 $shellModuleLabel = 'Inventory';
 $shellDashboard = APP_ROOT . '/admin/dashboard.php';
 $shellAdmin = getCurrentAdmin();
+$admin = $shellAdmin;
 $shellFlash = getFlash();
 $shellNavItems = [
     ['type' => 'section', 'label' => 'Main'],
